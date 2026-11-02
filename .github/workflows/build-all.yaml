@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       units: ${{ steps.units.outputs.units }}
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,6 +53,27 @@ jobs:
             grep -qx "$u" .github/units.txt || { echo "::error::$u is not in .github/units.txt"; exit 1; }
           done
           echo "units=$json" >> "$GITHUB_OUTPUT"
+
+      # An E5 Plus-only build is published as its own release, tagged
+      # e5-plus-<version>, so the spruce installer can pick E5 Plus images by
+      # tag prefix. Any other set of units goes to the beta-<branch> prerelease.
+      - name: Pick the release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          UNITS: ${{ steps.units.outputs.units }}
+          REPLACE: ${{ inputs.replace }}
+        run: |
+          if [ "$UNITS" = '["e5plus"]' ]; then
+            TAG="e5-plus-${VERSION}"
+            if [ "$REPLACE" != true ] && gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "::error::$TAG is already released (use replace to rebuild it)"; exit 1
+            fi
+          else
+            TAG="beta-${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   build:
     needs: plan
@@ -120,7 +142,7 @@ jobs:
       - name: Publish the beta
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: beta-${{ github.ref_name }}
+          TAG: ${{ needs.plan.outputs.tag }}
           VERSION: ${{ inputs.version }}
           UNITS: ${{ needs.plan.outputs.units }}
           REPLACE: ${{ inputs.replace }}
@@ -145,6 +167,23 @@ jobs:
             gh release upload "$TAG" *.img.7z* *.dmupd "${extra[@]}" SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
             echo "Rebuilt $(jq -r 'join(" ")' <<<"$UNITS") at ${GITHUB_SHA}" >> notes.md
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+            exit 0
+          fi
+          if [ "$TAG" = "e5-plus-${VERSION}" ]; then
+            cat > notes.md <<EOF
+          GameMT E5 Plus build.
+
+          Version: ${VERSION}
+          Commit: ${GITHUB_SHA}
+
+          Install: extract the \`.img.7z.001\` with 7-Zip, flash the \`.img\` to the card for the slot labelled TF2, and put spruce on the card in the slot labelled TF1.
+          EOF
+            gh release create "$TAG" *.img.7z* *.dmupd SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "GameMT E5 Plus ${VERSION}" \
+              --notes-file notes.md \
+              --latest=false
             exit 0
           fi
           # Asset names carry the date and version, so start from an empty release.
