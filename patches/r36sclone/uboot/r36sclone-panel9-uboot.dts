@@ -1,0 +1,9 @@
+// SPDX-License-Identifier:     GPL-2.0+
+/*
+ * r36sclone-uboot.dts starting with "Panel 9" instead of "Panel 8", for a G80CA
+ * whose Panel 9 does not answer the panel-ID check: shipped on BOOT as
+ * uboot-panel9.dtb, to be renamed uboot.dtb (see R36S-PANEL.txt on BOOT).
+ */
+
+#define R36SCLONE_PANEL9_FIRST
+#include "r36sclone-uboot.dts"

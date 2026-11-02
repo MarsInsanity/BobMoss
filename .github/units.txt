@@ -2,6 +2,7 @@ rgb30
 miniloong
 a10mini
 g350
+r36sclone
 xumini
 rg353m
 v10

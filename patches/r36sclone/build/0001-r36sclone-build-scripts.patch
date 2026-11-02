@@ -1,0 +1,385 @@
+R36S clone (r36sclone): the clone's additions to the shared build scripts.
+
+build_r36sclone.sh applies this before the build, so these upstream files stay
+exactly as spruceUI/dArkMoss has them in git and an upstream merge never
+touches the clone's changes. When upstream changes a line this patch needs,
+git apply fails at the start of the build: rebase the patch onto the new file
+(see R36SCLONE.md, "Keeping up with upstream").
+
+diff --git a/build_kernel.sh b/build_kernel.sh
+index 17b2481..fbfb230 100644
+--- a/build_kernel.sh
++++ b/build_kernel.sh
+@@ -41,9 +41,21 @@ if [ "$UNIT" == "xumini" ] && [ ! -f "$KERNEL_SRC/arch/arm64/boot/dts/rockchip/r
+   test -f "$KERNEL_SRC/arch/arm64/boot/dts/rockchip/rk3326-xumini-linux.dts"
+   verify_action
+ fi
++if [ "$UNIT" == "r36sclone" ] && [ ! -f "$KERNEL_SRC/arch/arm64/boot/dts/rockchip/rk3326-r36sclone-linux.dts" ]; then
++  # R36S clone (G80CA): its two board dts (one per panel) and lcdyk0517's
++  # odroidgo3-joypad, which reads the clone's amux-channel-mapping; both from
++  # lcdyk0517/arkos.bsp.4.4, see the patches. git am, as for the Mini M above.
++  git -C $KERNEL_SRC -c user.name=dArkMoss -c user.email=dArkMoss@localhost \
++    am "$PWD"/patches/r36sclone/kernel/series/*.patch
++  test -f "$KERNEL_SRC/arch/arm64/boot/dts/rockchip/rk3326-r36sclone-linux.dts"
++  verify_action
++fi
+ cd $KERNEL_SRC
+ for patch in ../scripts/kernel-${KERNEL_SRC}/*.patch; do
+   [ -e "$patch" ] || continue
++  # The clone's odroidgo3-joypad is lcdyk0517's, which this d-pad knob (for the
++  # stickless A10 Mini) does not apply to; a unit with two sticks has no use for it.
++  [ "$UNIT" == "r36sclone" ] && [ "${patch##*/}" == "odroidgo3-dpad-analog.patch" ] && continue
+   git apply -R --check "$patch" 2>/dev/null && continue
+   if ! git apply "$patch"; then
+     echo "ERROR: $patch did not apply."
+@@ -56,6 +68,7 @@ case "$UNIT" in
+   g350)   KERNEL_OPTIN="no-async-page-flip vt-csi-ignore rk817-gauge-capacity" ;;
+   v10)    KERNEL_OPTIN="no-async-page-flip vt-csi-ignore rk817-gauge-capacity" ;;
+   xumini) KERNEL_OPTIN="no-async-page-flip vt-csi-ignore rk817-gauge-capacity rk817-plugin-online" ;;
++  r36sclone) KERNEL_OPTIN="no-async-page-flip vt-csi-ignore rk817-gauge-capacity" ;;
+   *)      KERNEL_OPTIN="" ;;
+ esac
+ for fix in $KERNEL_OPTIN; do
+@@ -107,6 +120,8 @@ sudo cp $KERNEL_SRC/arch/arm64/boot/Image ${mountpoint}/
+ sudo cp $KERNEL_SRC/arch/arm64/boot/dts/rockchip/${KERNEL_DTB} ${mountpoint}/
+ # The V4's dtb, which boot.ini loads when U-Boot picked the V4 panel.
+ [ "$UNIT" == "a10mini" ] && sudo cp $KERNEL_SRC/arch/arm64/boot/dts/rockchip/${CHIPSET}-a10mini-v4-linux.dtb ${mountpoint}/
++# The clone's Panel 9 dtb, which boot.ini loads when U-Boot is on panel@9.
++[ "$UNIT" == "r36sclone" ] && sudo cp $KERNEL_SRC/arch/arm64/boot/dts/rockchip/${CHIPSET}-r36sclone-panel9-linux.dtb ${mountpoint}/
+ if [ "$UNIT" == "v10" ]; then
+   # The v11 dts names an ESP8089 SDIO Wi-Fi chip the V10 does not have. With
+   # this kernel's rkwifi (WL_ROCKCHIP) that node registers a Wi-Fi power switch,
+@@ -123,6 +138,12 @@ if [[ " $UBOOT_OPTIN " == *" uboot-dtb "* ]]; then
+   # dtb on BOOT; every unit's dts stays in the U-Boot tree.
+   sudo cp /tmp/${UNIT}-uboot.dtb ${mountpoint}/uboot.dtb
+   sudo rm /tmp/${UNIT}-uboot.dtb
++  if [ "$UNIT" == "r36sclone" ]; then
++    # The same U-Boot dtb starting on Panel 9, for a Panel 9 the ID check misses:
++    # renamed to uboot.dtb by hand (R36S-PANEL.txt on BOOT).
++    sudo cp /tmp/${UNIT}-panel9-uboot.dtb ${mountpoint}/uboot-panel9.dtb
++    sudo rm /tmp/${UNIT}-panel9-uboot.dtb
++  fi
+ elif [ "$UNIT" == "rg351mp" ] || [ "$UNIT" == "a10mini" ]; then
+   sudo cp /tmp/${UNIT}-uboot.dtb ${mountpoint}/rg351mp-uboot.dtb
+   sudo rm /tmp/${UNIT}-uboot.dtb
+diff --git a/build_update.sh b/build_update.sh
+index d69a518..057c0db 100644
+--- a/build_update.sh
++++ b/build_update.sh
+@@ -26,11 +26,17 @@ case "$UNIT" in
+   g350)      DMUPD_PLATFORM="G350" ;;
+   v10)       DMUPD_PLATFORM="V10" ;;
+   xumini)    DMUPD_PLATFORM="XUMiniM" ;;
++  r36sclone) DMUPD_PLATFORM="G350" ;;
+   *)         DMUPD_PLATFORM="" ;;
+ esac
+ 
+ # spruce's Firmware Update app finds the payload by its SPRUCE_PLATFORM, upper-cased.
+ iName=$(echo ${DMUPD_PLATFORM:-$UNIT} | tr '[:lower:]' '[:upper:]')
++# Except the R36S clone's, named for the unit: it borrows the G350's platform, so under
++# the G350's name it would be offered to real G350s. On the clone it is renamed
++# dArkMoss_G350_<version>.dmupd at the root of the spruce card (R36SCLONE.md); the
++# applier refuses it on any other unit's image (DARKMOSS_UNIT).
++[ "$UNIT" == "r36sclone" ] && iName=R36SCLONE
+ DMUPD_VERSION="${DARKMOSS_VERSION:-$BUILD_DATE}"
+ DMUPD="dArkMoss_${iName}_${DMUPD_VERSION}.dmupd"
+ 
+diff --git a/finishing_touches.sh b/finishing_touches.sh
+index 4c7238c..87b4f4d 100644
+--- a/finishing_touches.sh
++++ b/finishing_touches.sh
+@@ -6,13 +6,20 @@ if [ "$UNIT" == "rg351mp" ]; then
+ else
+   INITRD_LOADERADDRESS="0x04000000"
+ fi
+-# G350, A10 Mini: pass U-Boot's panel-ID result to Linux (/proc/cmdline), where a per-panel
+-# kernel dtb can key on it later.
+-if [ "$UNIT" == "g350" ] || [ "$UNIT" == "a10mini" ]; then
++# G350, A10 Mini, R36S clone: pass U-Boot's panel-ID result to Linux (/proc/cmdline), where a
++# per-panel kernel dtb can key on it later.
++if [ "$UNIT" == "g350" ] || [ "$UNIT" == "a10mini" ] || [ "$UNIT" == "r36sclone" ]; then
+   PANEL_ARGS=" panel_id=\${panel_id} panel_node=\${panel_node}"
+ else
+   PANEL_ARGS=""
+ fi
++# R36S clone: keep USB devices out of runtime autosuspend. With it on, the OTG port's hub
++# suspends while idle and a WiFi dongle plugged in later is never enumerated.
++if [ "$UNIT" == "r36sclone" ]; then
++  USB_ARGS=" usbcore.autosuspend=-1"
++else
++  USB_ARGS=""
++fi
+ # A10 Mini: one image for the A10 Mini and the V4. U-Boot switches to panel@1 when the
+ # panel's ID is the V4's (patches/a10mini/uboot); boot that panel's dtb, turned 180 degrees.
+ BOOT_ROTATION="${SCREEN_ROTATION}"
+@@ -26,9 +33,17 @@ setenv fb_rotate \"${SCREEN_ROTATION}\"
+ if test \"\${panel_node}\" = \"panel@1\"; then setenv dtb_name \"${CHIPSET}-a10mini-v4-linux.dtb\"; setenv fb_rotate \"2\"; fi
+ "
+ fi
+-# G350, Mini M, V10: with /boot/darkmoss-debug, kernel and systemd text on the panel instead of the logos
+-# (every bootlogo piece skips itself on darkmoss.debug).
+-if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ]; then
++# R36S clone: U-Boot names the panel it drives, panel@8 or panel@9 (patches/r36sclone/uboot,
++# whether the ID check or uboot-panel9.dtb put it there); boot the dtb for that panel.
++if [ "$UNIT" == "r36sclone" ]; then
++  BOOT_DTB='${dtb_name}'
++  PANEL_LINE="setenv dtb_name \"${KERNEL_DTB}\"
++if test \"\${panel_node}\" = \"panel@9\"; then setenv dtb_name \"${CHIPSET}-r36sclone-panel9-linux.dtb\"; fi
++"
++fi
++# G350, Mini M, V10, R36S clone: with /boot/darkmoss-debug, kernel and systemd text on the panel
++# instead of the logos (every bootlogo piece skips itself on darkmoss.debug).
++if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ] || [ "$UNIT" == "r36sclone" ]; then
+   DEBUG_LINE='if test -e mmc 1:1 /darkmoss-debug; then setenv bootargs "${bootargs} console=tty0 loglevel=7 systemd.show_status=1 darkmoss.debug"; fi'
+ else
+   DEBUG_LINE=""
+@@ -48,7 +63,7 @@ fi
+ cat <<EOF | sudo tee ${mountpoint}/boot.ini
+ odroidgoa-uboot-config
+ 
+-${PANEL_LINE}setenv bootargs "root=/dev/mmcblk0p2 rootwait rw fsck.repair=yes net.ifnames=0 fbcon=rotate:${BOOT_ROTATION} console=/dev/ttyFIQ0 quiet splash consoleblank=0 vt.global_cursor_default=0${PANEL_ARGS}${ROOTFS_ARGS}"
++${PANEL_LINE}setenv bootargs "root=/dev/mmcblk0p2 rootwait rw fsck.repair=yes net.ifnames=0 fbcon=rotate:${BOOT_ROTATION} console=/dev/ttyFIQ0 quiet splash consoleblank=0 vt.global_cursor_default=0${PANEL_ARGS}${USB_ARGS}${ROOTFS_ARGS}"
+ ${DEBUG_LINE}
+ 
+ # Booting
+@@ -71,6 +86,9 @@ if [ "$UNIT" == "xumini" ]; then
+ elif [ "$UNIT" == "g350" ]; then
+   # oakMOSS-style logo from logos/make-logo.py 640 480 (bootlogo.service also shows it).
+   sudo cp logos/g350/logo.bmp ${mountpoint}/logo.bmp
++elif [ "$UNIT" == "r36sclone" ]; then
++  # Just spruce's tree at half the G350's size, on black: make-logo.py 640 480 --black --no-label --tree-scale 1.
++  sudo cp logos/r36sclone/logo.bmp ${mountpoint}/logo.bmp
+ elif [ "$UNIT" == "v10" ]; then
+   # 320x480 portrait panel booted with fbcon=rotate:3: logos/make-logo.py 320 480 --rotate-ccw.
+   sudo cp logos/v10/logo.bmp ${mountpoint}/logo.bmp
+@@ -78,7 +96,7 @@ else
+   sudo cp logos/unrotated/dArkMoss.bmp ${mountpoint}/logo.bmp
+ fi
+ # bootlogo.service's first-boot redraw: that logo plus "Setting up the card" (make-logo.py --status).
+-if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ]; then
++if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ] || [ "$UNIT" == "r36sclone" ]; then
+   sudo cp logos/${UNIT}/logo-firstboot.bmp ${mountpoint}/
+ fi
+ 
+@@ -189,6 +207,40 @@ on the screen, so kernel messages and any panic are visible. Without it the
+ console is detached and the display belongs to the frontend.
+ EOF
+ 
++# R36S clone: which panel, and what to do when the screen stays dark.
++if [ "$UNIT" == "r36sclone" ]; then
++  cat <<EOF | sudo tee ${mountpoint}/R36S-PANEL.txt >/dev/null
++dArkMoss for the R36S clone (G80CA-MB board)
++============================================
++
++This image is for the G80CA-MB board (G80CA-MB V1.2 and V1.3 on the board's
++silkscreen), not for a genuine R36S. G80CA units ship with one of two screens,
++"Panel 8" and "Panel 9". At power-on the boot loader asks the screen for its
++ID and picks the matching one, starting from Panel 8.
++
++If the screen stays dark (the power LED is on but nothing ever shows):
++  1. Put this card in a PC.
++  2. Rename "uboot.dtb" to "uboot-panel8.dtb".
++  3. Rename "uboot-panel9.dtb" to "uboot.dtb".
++  4. Boot the device again.
++To go back, rename the files the other way round.
++
++A dArkMoss update replaces both files with fresh copies, so on a Panel 9
++unit that needed the rename, do it again after an update.
++
++Create an empty "darkmoss-debug" file here (see README-logging.txt) to have
++the logs record which panel was detected: look for panel_id and panel_node
++in the kernel command line at the top of dmesg.log.
++
++Headphones
++----------
++Sound moves to the headphones when they are plugged in and back to the
++speaker when they come out. If it works the wrong way round (speaker with
++headphones in, silence without), create an empty file named
++"headphones-invert" here: G80CA boards differ in how they report the jack.
++EOF
++fi
++
+ # Disable getty on tty0 and tty1
+ sudo chroot Arkbuild/ bash -c "systemctl disable getty@tty0.service getty@tty1.service"
+ 
+@@ -276,15 +328,24 @@ if [[ "$UNIT" == "a10mini" ]]; then
+   sudo chroot Arkbuild/ bash -c "systemctl enable a10mini-panel.service"
+ fi
+ 
+-# Wired adbd. Not on the A10 Mini: its WiFi sits on the only OTG controller.
++# Wired adbd. Not on the A10 Mini: its WiFi sits on the only OTG controller. Nor on the
++# R36S clone: its one USB port is that controller, and a WiFi dongle plugged in after boot
++# found it already a gadget.
+ sudo install -D -m 0755 scripts/adbd/adbd-gadget.sh Arkbuild/usr/local/sbin/adbd-gadget.sh
+ sudo cp scripts/adbd/adbd.service Arkbuild/etc/systemd/system/
+-if [[ "$UNIT" != "a10mini" ]]; then
++if [[ "$UNIT" != "a10mini" ]] && [[ "$UNIT" != "r36sclone" ]]; then
+   sudo chroot Arkbuild/ bash -c "systemctl enable adbd"
+ else
+   sudo chroot Arkbuild/ bash -c "systemctl disable adbd"
+ fi
+ 
++# R36S clone: nothing else moves the rk817 Playback Path to the headphones (see hpjackd.py).
++if [[ "$UNIT" == "r36sclone" ]]; then
++  sudo install -D -m 0755 scripts/r36sclone/hpjackd.py Arkbuild/usr/local/sbin/hpjackd.py
++  sudo cp scripts/r36sclone/hpjackd.service Arkbuild/etc/systemd/system/
++  sudo chroot Arkbuild/ bash -c "systemctl enable hpjackd"
++fi
++
+ # Disable requirement for sudo for setting niceness
+ echo "ark              -       nice            -20" | sudo tee -a Arkbuild/etc/security/limits.conf
+ 
+@@ -460,9 +521,10 @@ sudo cp scripts/boot_text.sh Arkbuild/usr/local/bin/
+ sudo chmod 777 Arkbuild/usr/local/bin/boot_text.sh
+ sudo cp scripts/welcome-message.service Arkbuild/etc/systemd/system/welcome-message.service
+ sudo chroot Arkbuild/ bash -c "systemctl enable welcome-message"
+-# G350, Mini M, V10: the logo stays up instead of the welcome text, which would clear it. bootlogo.service
+-# redraws it once the console blanks U-Boot's (upstream's image-viewer logo.service is not built).
+-if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ]; then
++# G350, Mini M, V10, R36S clone: the logo stays up instead of the welcome text, which would clear it.
++# bootlogo.service redraws it once the console blanks U-Boot's (upstream's image-viewer logo.service
++# is not built).
++if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ] || [ "$UNIT" == "r36sclone" ]; then
+   sudo chroot Arkbuild/ bash -c "systemctl disable welcome-message"
+   sudo cp scripts/bootlogo/bootlogo.py Arkbuild/usr/local/sbin/
+   sudo chmod 0755 Arkbuild/usr/local/sbin/bootlogo.py
+diff --git a/image_setup.sh b/image_setup.sh
+index ca4c7b3..13924d1 100644
+--- a/image_setup.sh
++++ b/image_setup.sh
+@@ -16,7 +16,7 @@ sync
+ 
+ 
+ # Build uboot and install it to the image
+-if [ "$UNIT" == "rg351mp" ] || [ "$UNIT" == "g350" ] || [ "$UNIT" == "a10mini" ] || [ "$UNIT" == "xumini" ]; then
++if [ "$UNIT" == "rg351mp" ] || [ "$UNIT" == "g350" ] || [ "$UNIT" == "a10mini" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "r36sclone" ]; then
+   git clone --depth=1 https://github.com/christianhaitian/RG351MP-u-boot u-boot-${CHIPSET}
+ else
+   git clone --depth=1 https://github.com/christianhaitian/u-boot-${CHIPSET}
+@@ -27,6 +27,13 @@ if [ "$UNIT" == "xumini" ]; then
+   patch -p1 < ../patches/xumini/uboot/0001-arch-arm-dts-Makefile.patch
+   cp ../patches/xumini/uboot/xumini-uboot.dts arch/arm/dts/
+ fi
++if [ "$UNIT" == "r36sclone" ]; then
++  # Ours as well: the G80CA board (r36sclone-uboot.dts), its two panels, and the
++  # same board starting on Panel 9 (r36sclone-panel9-uboot.dts).
++  patch -p1 < ../patches/r36sclone/uboot/0001-arch-arm-dts-Makefile.patch
++  verify_action
++  cp ../patches/r36sclone/uboot/*.dts ../patches/r36sclone/uboot/*.dtsi arch/arm/dts/
++fi
+ if [ "$UNIT" == "g350" ]; then
+   # g350-uboot.dts pins vccio_sd (the TF1 IO rail) at 1.8 V, so U-Boot forces it
+   # down mid-boot and loses the card; a 1.8-3.3 V range leaves it as booted.
+@@ -55,6 +62,7 @@ case "$UNIT" in
+   a10mini) UBOOT_OPTIN="panel-id low-battery" ;;
+   xumini) UBOOT_OPTIN="uboot-dtb low-battery" ;;
+   v10)    UBOOT_OPTIN="low-battery" ;;
++  r36sclone) UBOOT_OPTIN="uboot-dtb panel-id" ;;
+   *)      UBOOT_OPTIN="" ;;
+ esac
+ for fix in $UBOOT_OPTIN; do
+@@ -66,8 +74,9 @@ done
+ dd if="sd_fuse/idbloader.img" of="../${DISK}" bs=512 seek=64 conv=sync,noerror,notrunc
+ dd if="sd_fuse/uboot.img" of="../${DISK}" bs=512 seek=16384 conv=sync,noerror,notrunc
+ dd if="sd_fuse/trust.img" of="../${DISK}" bs=512 seek=24576 conv=sync,noerror,notrunc
+-if [ "$UNIT" == "rg351mp" ] || [ "$UNIT" == "g350" ] || [ "$UNIT" == "a10mini" ] || [ "$UNIT" == "xumini" ]; then
++if [ "$UNIT" == "rg351mp" ] || [ "$UNIT" == "g350" ] || [ "$UNIT" == "a10mini" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "r36sclone" ]; then
+   cp arch/arm/dts/${UNIT}-uboot.dtb /tmp/
++  [ "$UNIT" == "r36sclone" ] && cp arch/arm/dts/${UNIT}-panel9-uboot.dtb /tmp/
+ fi
+ cd ..
+ rm -rf u-boot-${CHIPSET}
+diff --git a/scripts/00-header b/scripts/00-header
+index 2540274..ab2cadd 100644
+--- a/scripts/00-header
++++ b/scripts/00-header
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+ printf "\n"
+-printf "Welcome to dArkMoss %s" "$(. /etc/os-release; echo "$OS_VERSION")"
++printf "Welcome to dArkMoss %s" "$(. /etc/os-release; echo "${DARKMOSS_VERSION:-$OS_VERSION}")"
+ printf "\n"
+ printf "Based on $(cat /etc/os-release | grep -oP 'PRETTY_NAME="\K[^"]+') ($(uname -o) $(uname -rm))"
+ printf "\n"
+diff --git a/scripts/spruce/dmupd-apply.sh b/scripts/spruce/dmupd-apply.sh
+index 99432a6..6a3500c 100644
+--- a/scripts/spruce/dmupd-apply.sh
++++ b/scripts/spruce/dmupd-apply.sh
+@@ -74,6 +74,11 @@ if [ -z "$HAVE_PLATFORM" ]; then
+ fi
+ WANT_PLATFORM="$(field spruce_platform)"
+ [ "$WANT_PLATFORM" = "$HAVE_PLATFORM" ] || fail "payload is for $WANT_PLATFORM, this device is $HAVE_PLATFORM"
++# Units can share a SPRUCE_PLATFORM (the R36S clone runs spruce's G350 one), so the
++# image's own unit decides too. Images from before the DARKMOSS_UNIT stamp skip this.
++HAVE_UNIT="$(sed -n 's/^DARKMOSS_UNIT="\(.*\)"/\1/p' /etc/os-release)"
++WANT_UNIT="$(field unit)"
++[ -z "$HAVE_UNIT" ] || [ "$WANT_UNIT" = "$HAVE_UNIT" ] || fail "payload is for the $WANT_UNIT image, this device runs the $HAVE_UNIT one"
+ 
+ say "applying $(field version) ($(field build)) for $WANT_PLATFORM"
+ 
+@@ -212,5 +217,5 @@ if [ "$HAVE_LOADER" = 1 ] && ! loader_matches; then
+     loader_matches || fail "loader did not read back correctly; the boot files and rootfs are already updated"
+ fi
+ 
+-say "done: $(sed -n 's/^OS_VERSION=//p' /etc/os-release | tr -d '"') is installed, reboot to run it"
++say "done: $(. /etc/os-release; echo "${DARKMOSS_VERSION:-$OS_VERSION}") is installed, reboot to run it"
+ exit 0
+diff --git a/setup_spruce_handoff.sh b/setup_spruce_handoff.sh
+index f235c78..f57f9dd 100644
+--- a/setup_spruce_handoff.sh
++++ b/setup_spruce_handoff.sh
+@@ -157,6 +157,7 @@ case "$UNIT" in
+   g350)      HW_DEVICE_NAME="G350" ;;
+   v10)       HW_DEVICE_NAME="Powkiddy V10" ;;
+   xumini)    HW_DEVICE_NAME="XU Mini M" ;;
++  r36sclone) HW_DEVICE_NAME="R36S" ;;
+   *)         HW_DEVICE_NAME="" ;;
+ esac
+ if [ -n "$HW_DEVICE_NAME" ] && ! grep -q '^HW_DEVICE=' Arkbuild/etc/os-release 2>/dev/null; then
+@@ -166,6 +167,11 @@ fi
+ # The spruce platform name for this unit, so spruce needs no table of its own
+ # to map HW_DEVICE strings: a new unit is one line here and its platform files
+ # on the card.
++#
++# r36sclone: spruce has no R36S platform, and the clone is a G350 as far as
++# spruce can tell: RK3326, 640x480, two sticks, the same odroidgo3-joypad
++# ("GO-Super Gamepad", same product/revision and button codes), rk817 audio and
++# a 0-255 backlight. So it runs spruce's G350 profile unchanged.
+ case "$UNIT" in
+   rgb30)     SPRUCE_PLATFORM_NAME="RGB30" ;;
+   miniloong) SPRUCE_PLATFORM_NAME="Miniloong" ;;
+@@ -174,15 +180,33 @@ case "$UNIT" in
+   g350)      SPRUCE_PLATFORM_NAME="G350" ;;
+   v10)       SPRUCE_PLATFORM_NAME="V10" ;;
+   xumini)    SPRUCE_PLATFORM_NAME="XUMiniM" ;;
++  r36sclone) SPRUCE_PLATFORM_NAME="G350" ;;
+   *)         SPRUCE_PLATFORM_NAME="" ;;
+ esac
+ if [ -n "$SPRUCE_PLATFORM_NAME" ] && ! grep -q '^SPRUCE_PLATFORM=' Arkbuild/etc/os-release 2>/dev/null; then
+   echo "SPRUCE_PLATFORM=\"$SPRUCE_PLATFORM_NAME\"" | sudo tee -a Arkbuild/etc/os-release >/dev/null
+ fi
+ 
++# Which dArkMoss image this is, whatever SPRUCE_PLATFORM it borrows: the
++# applier refuses a payload built for another unit (dmupd-apply.sh).
++if ! grep -q '^DARKMOSS_UNIT=' Arkbuild/etc/os-release 2>/dev/null; then
++  echo "DARKMOSS_UNIT=\"$UNIT\"" | sudo tee -a Arkbuild/etc/os-release >/dev/null
++fi
++
+ # What spruce shows as the firmware version. The release tag when CI passes
+ # one (DARKMOSS_VERSION), the build date otherwise.
+-if ! grep -q '^OS_VERSION=' Arkbuild/etc/os-release 2>/dev/null; then
++#
++# r36sclone: spruce's Firmware Update looks for spruceUI/dArkMoss's
++# dArkMoss_<SPRUCE_PLATFORM>_*.dmupd, which for the borrowed G350 platform is
++# the real G350's: its kernel, dtbs and U-Boot dtb would leave the clone dark.
++# A version above any release keeps spruce from offering it (installed >=
++# latest), and the real one goes in DARKMOSS_VERSION for 00-header and logs.
++if [ "$UNIT" == "r36sclone" ]; then
++  if ! grep -q '^OS_VERSION=' Arkbuild/etc/os-release 2>/dev/null; then
++    echo 'OS_VERSION="999.0.0"' | sudo tee -a Arkbuild/etc/os-release >/dev/null
++    echo "DARKMOSS_VERSION=\"${DARKMOSS_VERSION:-$BUILD_DATE}\"" | sudo tee -a Arkbuild/etc/os-release >/dev/null
++  fi
++elif ! grep -q '^OS_VERSION=' Arkbuild/etc/os-release 2>/dev/null; then
+   echo "OS_VERSION=\"${DARKMOSS_VERSION:-$BUILD_DATE}\"" | sudo tee -a Arkbuild/etc/os-release >/dev/null
+ fi
+ 

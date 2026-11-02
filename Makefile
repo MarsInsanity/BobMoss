@@ -46,6 +46,13 @@ xumini:
 	@sleep 5
 	./build_xumini.sh
 
+r36sclone:
+	$(info dArkOS will be built using the $(DEBIAN_CODE_NAME) release of Debian.)
+	$(info debian building caching enabled? ${ENABLE_CACHE})
+	$(info adding armhf 32bit userspace? ${BUILD_ARMHF})
+	@sleep 5
+	./build_r36sclone.sh
+
 miniloong:
 	$(info dArkOS will be built using the $(DEBIAN_CODE_NAME) release of Debian.)
 	$(info debian building caching enabled? ${ENABLE_CACHE})

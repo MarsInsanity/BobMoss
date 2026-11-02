@@ -1,0 +1,82 @@
+logos/make-logo.py: --black, --no-label and --tree-scale, used to draw
+logos/r36sclone/logo.bmp and logo-firstboot.bmp (defaults unchanged). Not
+needed to build: the bmps are committed. To redraw them:
+  git apply patches/r36sclone/make-logo.patch
+  python3 logos/make-logo.py 640 480 logos/r36sclone/logo.bmp --black --no-label --tree-scale 1
+  git apply -R patches/r36sclone/make-logo.patch
+
+diff --git a/logos/make-logo.py b/logos/make-logo.py
+index d45596c..5445102 100644
+--- a/logos/make-logo.py
++++ b/logos/make-logo.py
+@@ -2,8 +2,10 @@
+ # The dArkMoss boot logo, laid out like oakMOSS's (scripts/make-boot-resource.py logo()): spruce's tree
+ # (spruce/imgs/tree_sm_close_crop.png) over the name on the SPRUCE theme's background, as a full-panel 24-bit BMP for U-Boot and bootlogo.py.
+ #   make-logo.py <width> <height> <out.bmp> [--rotate-cw|--rotate-ccw] [--status TEXT]
++#                [--black] [--tree-scale N] [--no-label]
+ #     --rotate-cw/--rotate-ccw: draw landscape, turn 90 degrees clockwise / counterclockwise (for a
+-#     portrait panel booted with fbcon=rotate:1 / rotate:3); --status: add oakMOSS's grey status line.
++#     portrait panel booted with fbcon=rotate:1 / rotate:3); --status: add oakMOSS's grey status line;
++#     --black: black background; --tree-scale: tree size (default 2, its PNG doubled); --no-label: tree only.
+ #     Panels shorter than 480 px get the layout scaled down to fit.
+ import os
+ import sys
+@@ -16,19 +18,20 @@ FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+ BG = (0x28, 0x28, 0x28, 255)  # spruce Themes/SPRUCE bgColor #282828
+ 
+ 
+-def logo(w, h, label="dArkMoss", status=None):
++def logo(w, h, label="dArkMoss", status=None, bg=BG, tree_scale=2):
+     k = min(1.0, min(w, h) / 480)  # 1 on the 640x480 / 720x720 panels the layout was made for
+-    im = Image.new("RGBA", (w, h), BG)
++    im = Image.new("RGBA", (w, h), bg)
+     tree = Image.open(TREE).convert("RGBA")
+-    tree = tree.resize((round(tree.width * 2 * k), round(tree.height * 2 * k)), Image.LANCZOS)
++    tree = tree.resize((round(tree.width * tree_scale * k), round(tree.height * tree_scale * k)), Image.LANCZOS)
+     font = ImageFont.truetype(FONTB, round(46 * k))
+     d = ImageDraw.Draw(im)
+-    lw = d.textlength(label, font=font)
+-    asc, desc = font.getmetrics()
+-    gap = round(22 * k)
++    lw = d.textlength(label, font=font) if label else 0
++    asc, desc = font.getmetrics() if label else (0, 0)
++    gap = round(22 * k) if label else 0
+     top = (h - (tree.height + gap + asc + desc)) // 2
+     im.alpha_composite(tree, ((w - tree.width) // 2, top))
+-    d.text(((w - lw) / 2, top + tree.height + gap), label, font=font, fill=(235, 235, 235, 255))
++    if label:
++        d.text(((w - lw) / 2, top + tree.height + gap), label, font=font, fill=(235, 235, 235, 255))
+     if status:
+         # oakMOSS's status line (make-charge-screens.py): DejaVu Sans 22, grey, in the strip below the name.
+         small = ImageFont.truetype(FONT, round(22 * k))
+@@ -40,18 +43,25 @@ def logo(w, h, label="dArkMoss", status=None):
+ 
+ 
+ if __name__ == "__main__":
+-    argv, status = sys.argv[1:], None
++    argv, status, tree_scale = sys.argv[1:], None, 2
+     if "--status" in argv:
+         i = argv.index("--status")
+         status = argv[i + 1]
+         del argv[i:i + 2]
+-    args = [a for a in argv if a not in ("--rotate-cw", "--rotate-ccw")]
++    if "--tree-scale" in argv:
++        i = argv.index("--tree-scale")
++        tree_scale = float(argv[i + 1])
++        del argv[i:i + 2]
++    opts = dict(status=status, tree_scale=tree_scale,
++                bg=(0, 0, 0, 255) if "--black" in argv else BG,
++                label=None if "--no-label" in argv else "dArkMoss")
++    args = [a for a in argv if a not in ("--rotate-cw", "--rotate-ccw", "--black", "--no-label")]
+     if len(args) != 3:
+         sys.exit("usage: make-logo.py <width> <height> <out.bmp> [--rotate-cw|--rotate-ccw] [--status TEXT]")
+     w, h, out = int(args[0]), int(args[1]), args[2]
+     if "--rotate-cw" in argv:
+-        logo(h, w, status=status).transpose(Image.Transpose.ROTATE_270).save(out, "BMP")
++        logo(h, w, **opts).transpose(Image.Transpose.ROTATE_270).save(out, "BMP")
+     elif "--rotate-ccw" in argv:
+-        logo(h, w, status=status).transpose(Image.Transpose.ROTATE_90).save(out, "BMP")
++        logo(h, w, **opts).transpose(Image.Transpose.ROTATE_90).save(out, "BMP")
+     else:
+-        logo(w, h, status=status).save(out, "BMP")
++        logo(w, h, **opts).save(out, "BMP")
