@@ -1,0 +1,53 @@
+name: build-rg552-android
+
+# The RG552's Android companion app (android/rg552-bootswitch): puts the
+# dArkMoss boot loader back on the TF1 card and reboots into it. Built with the
+# runner's preinstalled Android SDK, no Gradle. Optionally attached to a
+# release by tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to attach RG552BootSwitch.apk to (blank = artifact only)"
+        required: false
+        type: string
+        default: ""
+  push:
+    paths:
+      - "android/rg552-bootswitch/**"
+      - "scripts/rg552/rg552-bootswitch"
+      - ".github/workflows/build-rg552-android.yaml"
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build the APK
+        env:
+          VERSION_NAME: "1.0.${{ github.run_number }}"
+          VERSION_CODE: "${{ github.run_number }}"
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
+          android/rg552-bootswitch/build.sh "$PWD/RG552BootSwitch.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RG552BootSwitch
+          path: RG552BootSwitch.apk
+
+      - name: Attach to the release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release_tag }}" RG552BootSwitch.apk --repo "$GITHUB_REPOSITORY" --clobber
