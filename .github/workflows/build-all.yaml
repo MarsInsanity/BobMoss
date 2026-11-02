@@ -132,7 +132,11 @@ jobs:
 
       - name: Publish the beta
         env:
-          GH_TOKEN: ${{ github.token }}
+          # RELEASE_TOKEN (optional repository secret): a fine-grained token with
+          # Contents and Workflows write here, for archive-release.sh. The run
+          # token is refused (403) when moving a release to a new tag on a
+          # commit with workflow changes the default branch lacks.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           DEVICE_BRANCHES: "rg351p"
           VERSION: ${{ inputs.version }}
           UNITS: ${{ needs.plan.outputs.units }}
