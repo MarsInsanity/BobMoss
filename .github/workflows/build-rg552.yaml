@@ -88,12 +88,18 @@ jobs:
           sha256sum *.img.7z* *.dmupd RG552BootSwitch.apk > SHA256SUMS
           ls -lh *.img.7z* *.dmupd RG552BootSwitch.apk SHA256SUMS
 
+      # Tags go through RELEASE_TOKEN (repository secret: a fine-grained token
+      # with Contents and Workflows write on this repo). The workflow token is
+      # refused (HTTP 403) creating a tag on a commit whose workflow files differ
+      # from the default branch's, which every rg552 commit's do.
       - name: Move the previous RG552 build to rg552-<date built>
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          [ "$HAS_RELEASE_TOKEN" = true ] || { echo "::error::RG552 releases need the RELEASE_TOKEN secret (fine-grained token, Contents + Workflows read/write on this repo); the workflow token gets HTTP 403 creating their tags"; exit 1; }
           if gh release view RG552 --repo "$REPO" >/dev/null 2>&1; then
             built="$(gh release view RG552 --repo "$REPO" --json createdAt -q .createdAt | cut -c1-10)"
             ref="$(gh api "repos/$REPO/git/ref/tags/RG552")"
@@ -119,7 +125,7 @@ jobs:
 
       - name: Publish as RG552
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           REPO: ${{ github.repository }}
           VERSION: ${{ needs.check.outputs.version }}
         run: |
