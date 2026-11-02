@@ -6,6 +6,8 @@ name: build-rg552-android
 # release by tag.
 
 on:
+  # build-rg552.yaml calls this and publishes the APK with the image.
+  workflow_call:
   workflow_dispatch:
     inputs:
       release_tag:
@@ -47,7 +49,7 @@ jobs:
           path: RG552BootSwitch.apk
 
       - name: Attach to the release
-        if: ${{ inputs.release_tag != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ inputs.release_tag }}" RG552BootSwitch.apk --repo "$GITHUB_REPOSITORY" --clobber

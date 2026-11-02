@@ -1,0 +1,134 @@
+# Builds the Anbernic RG552 image and its Android Boot Switch app and publishes
+# them as the release tagged "RG552".
+#
+# This fork builds several handhelds, so an installer can take the RG552 build
+# from the one fixed tag "RG552", which always holds the newest RG552 build.
+# Before a new build takes that tag, the release holding it is moved to
+# "rg552-<date it was built>" (rg552-YYYY-MM-DD; -2, -3 ... for a second build
+# that day), so older builds stay downloadable under their own tags.
+#
+# The RG552 release is never marked "latest": the latest release of this repo
+# is what the other units' update checks read.
+#
+# Kept apart from build-all.yaml (and rg552 out of .github/units.txt) so the
+# RG552 never lands in a beta-<branch> prerelease, and so this fork's changes to
+# upstream's own workflows stay minimal.
+
+name: build-rg552
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version stamped into the image, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-rg552
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like v1.2.3"; exit 1; }
+
+  image:
+    needs: check
+    uses: ./.github/workflows/build-image.yaml
+    with:
+      unit: rg552
+      version: ${{ inputs.version }}
+
+  apk:
+    needs: check
+    uses: ./.github/workflows/build-rg552-android.yaml
+
+  publish:
+    needs: [image, apk]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Collect the image
+        uses: actions/download-artifact@v4
+        with:
+          name: dArkMoss-rg552
+
+      - name: Collect the APK
+        uses: actions/download-artifact@v4
+        with:
+          name: RG552BootSwitch
+
+      - name: Checksums
+        run: |
+          shopt -s nullglob
+          imgs=( *.img.7z* ); upd=( *.dmupd )
+          [ ${#imgs[@]} -gt 0 ] || { echo "::error::no RG552 image was produced"; exit 1; }
+          [ ${#upd[@]} -gt 0 ] || { echo "::error::no RG552 update payload was produced"; exit 1; }
+          [ -f RG552BootSwitch.apk ] || { echo "::error::no RG552BootSwitch.apk was produced"; exit 1; }
+          sha256sum *.img.7z* *.dmupd RG552BootSwitch.apk > SHA256SUMS
+          ls -lh *.img.7z* *.dmupd RG552BootSwitch.apk SHA256SUMS
+
+      - name: Move the previous RG552 build to rg552-<date built>
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view RG552 --repo "$REPO" >/dev/null 2>&1; then
+            built="$(gh release view RG552 --repo "$REPO" --json createdAt -q .createdAt | cut -c1-10)"
+            ref="$(gh api "repos/$REPO/git/ref/tags/RG552")"
+            sha="$(jq -r .object.sha <<<"$ref")"
+            # An annotated tag points at a tag object; the new tag needs the commit.
+            if [ "$(jq -r .object.type <<<"$ref")" = tag ]; then
+              sha="$(gh api "repos/$REPO/git/tags/$sha" -q .object.sha)"
+            fi
+            new="rg552-${built}"; n=2
+            while gh api "repos/$REPO/git/ref/tags/$new" >/dev/null 2>&1; do
+              new="rg552-${built}-${n}"; n=$((n + 1))
+            done
+            gh api -X POST "repos/$REPO/git/refs" -f ref="refs/tags/$new" -f sha="$sha" >/dev/null
+            gh release edit RG552 --repo "$REPO" --tag "$new" \
+              --title "dArkMoss RG552 (built ${built})" --latest=false
+            echo "Previous RG552 build ($sha) is now $new"
+          fi
+          # Drop the RG552 tag itself (now or left behind by a failed run), so
+          # the new release puts it on this build's commit.
+          if gh api "repos/$REPO/git/ref/tags/RG552" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/$REPO/git/refs/tags/RG552"
+          fi
+
+      - name: Publish as RG552
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          cat > notes.md <<EOF
+          dArkMoss for the Anbernic RG552 (RK3399), built from \`${GITHUB_REF_NAME}\`.
+
+          Version: ${VERSION}
+          Built: $(date -u +%Y-%m-%d)
+          Commit: ${GITHUB_SHA}
+
+          - \`dArkMoss_RG552_*.img.7z.001\` + \`.002\`: the TF1 card image (a plain byte
+            split: \`cat\` them, or let 7-Zip open \`.001\`). spruce goes on TF2.
+          - \`dArkMoss_RG552_*.dmupd\`: in-place update payload.
+          - \`RG552BootSwitch.apk\`: Android app (needs root) to boot back into
+            dArkMoss after spruce's "Boot to Android".
+
+          The tag \`RG552\` always holds the newest RG552 build; older builds are
+          kept as \`rg552-<date built>\`.
+          EOF
+          gh release create RG552 *.img.7z* *.dmupd RG552BootSwitch.apk SHA256SUMS \
+            --repo "$REPO" \
+            --target "$GITHUB_SHA" \
+            --title "dArkMoss RG552 ${VERSION}" \
+            --notes-file notes.md \
+            --latest=false

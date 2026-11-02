@@ -123,6 +123,12 @@ and the RGA-rotated SDL2 from `rk3326_core_builds` (`CORE_BUILDS_CHIPSET` in
 - **Fan**: `rg552-fan` (`scripts/rg552/`), a userspace loop with an Auto curve
   and fixed High/Medium/Low/Off speeds, always full speed at 85 C. spruce's Fan
   Control app drives it with `rg552-fan set <mode>`.
+- **Releases**: built by the `build-rg552` workflow (not `build-all`; rg552 is
+  not in `.github/units.txt`). The newest build is always the release tagged
+  `RG552`, with the image, the update payload and `RG552BootSwitch.apk`; each
+  new build first moves the previous one to `rg552-<date built>`. The RG552
+  release is never marked latest, so the other units' update checks are
+  unaffected.
 - **Android**: Android stays on the eMMC. `rg552-bootswitch android` (spruce's
   Boot to Android app) saves the first sector of each loader stage into the
   unused sectors 40-42 of TF1 and blanks them, so the next boot falls through to
