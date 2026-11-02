@@ -1,0 +1,38 @@
+spruce-launch: ignore SIGHUP so a game survives the unit stop and saves on power-off
+
+save_poweroff.sh kills runtime.sh (the unit's MainPID) before it asks the
+emulator to close. The unit deactivates with TTYVHangup=yes, which SIGHUPs the
+game still on tty1, so it died without writing its auto-save state and power-off
+resumed from an older state. Ignore SIGHUP before exec'ing runtime.sh; it stays
+ignored across exec, so the games inherit it. Not clone-specific: applied to the
+r36sclone build only, so the upstream file stays as it is.
+
+diff --git a/scripts/spruce/spruce-launch.service b/scripts/spruce/spruce-launch.service
+index 31cb419..2704aad 100644
+--- a/scripts/spruce/spruce-launch.service
++++ b/scripts/spruce/spruce-launch.service
+@@ -20,6 +20,15 @@ Type=idle
+ #
+ # The frontend's children legitimately outlive it during shutdown, so process
+ # is the honest mode here.
++#
++# The same stop has a second effect: TTYVHangup=yes hangs up tty1 when the unit
++# deactivates, and that SIGHUPs every process still on it - the running game
++# included. save_poweroff.sh kills runtime.sh BEFORE it asks the emulator to
++# close, so a game held on this tty was killed outright and never wrote its
++# auto-save state: power-off resumed the game from an older state, while the
++# Game Switcher (which does not stop this unit) saved fine. ExecStart below
++# therefore ignores SIGHUP before it execs runtime.sh; an ignored signal stays
++# ignored across exec, so every game and app spruce starts inherits it.
+ KillMode=process
+ ExecStartPre=/usr/local/sbin/mount-spruce.sh
+ # Detach fbcon from the panel so the console cannot show through during the
+@@ -42,7 +51,7 @@ ExecStartPre=-/usr/local/sbin/console-blank.sh
+ # flag, runtime.sh runs normally and its output goes to the journal below. exec
+ # keeps runtime.sh as the unit's MainPID in both branches, which the
+ # KillMode=process shutdown path above depends on.
+-ExecStart=/bin/sh -lc 'if [ -e /boot/darkmoss-debug ]; then exec /mnt/SDCARD/spruce/scripts/runtime.sh >/dev/tty1 2>&1; else exec /mnt/SDCARD/spruce/scripts/runtime.sh; fi'
++ExecStart=/bin/sh -lc 'trap "" HUP; if [ -e /boot/darkmoss-debug ]; then exec /mnt/SDCARD/spruce/scripts/runtime.sh >/dev/tty1 2>&1; else exec /mnt/SDCARD/spruce/scripts/runtime.sh; fi'
+ Restart=on-failure
+ RestartSec=3
+ StandardInput=tty
