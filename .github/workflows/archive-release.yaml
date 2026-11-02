@@ -1,0 +1,30 @@
+# Retags one release by hand, as build-all does for device branches before
+# publishing: TAG becomes PREFIX-YYYYMMDD (the day it was built), e.g.
+# beta-claude/zen-knuth-etotex -> rg351p-20261101.
+
+name: archive-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of the release to archive, e.g. rg351p"
+        required: true
+      prefix:
+        description: "Prefix of the new tag, e.g. rg351p (gives rg351p-YYYYMMDD)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          PREFIX: ${{ inputs.prefix }}
+        run: .github/scripts/archive-release.sh "$TAG" "$PREFIX"

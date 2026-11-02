@@ -1,5 +1,11 @@
 # Builds the units in parallel and publishes them as the beta-<branch>
 # prerelease. Promote a beta with create-latest-release.yaml.
+#
+# A device branch (DEVICE_BRANCHES below, e.g. "rg351p") publishes instead to
+# a release tagged with the branch name itself, so an installer can always
+# fetch the newest build of that device from one tag. The release it replaces
+# is kept, retagged <branch>-YYYYMMDD (the day it was built), by
+# .github/scripts/archive-release.sh.
 
 name: build-all
 
@@ -81,8 +87,7 @@ jobs:
       # fork can carry them on a branch named after the unit ("v10", "rg351p") of
       # <owner>/spruceOS; when that branch exists its files are attached as
       # spruce-<UNIT>-overlay.zip. Without it a unit gets its notes only.
-      - name: Check out (release notes)
-        if: ${{ contains(needs.plan.outputs.units, '"v10"') || contains(needs.plan.outputs.units, '"rg351p"') }}
+      - name: Check out (release notes, archive script)
         uses: actions/checkout@v4
         with:
           path: src
@@ -128,11 +133,14 @@ jobs:
       - name: Publish the beta
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: beta-${{ github.ref_name }}
+          DEVICE_BRANCHES: "rg351p"
           VERSION: ${{ inputs.version }}
           UNITS: ${{ needs.plan.outputs.units }}
           REPLACE: ${{ inputs.replace }}
         run: |
+          device=false
+          case " $DEVICE_BRANCHES " in *" $GITHUB_REF_NAME "*) device=true ;; esac
+          if [ "$device" = true ]; then TAG="$GITHUB_REF_NAME"; else TAG="beta-$GITHUB_REF_NAME"; fi
           if [ "$REPLACE" = true ]; then
             gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > notes.md \
               || { echo "::error::no $TAG to update"; exit 1; }
@@ -157,7 +165,12 @@ jobs:
             exit 0
           fi
           # Asset names carry the date and version, so start from an empty release.
-          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2>/dev/null || true
+          # A device branch keeps the release it replaces, under <branch>-YYYYMMDD.
+          if [ "$device" = true ]; then
+            src/.github/scripts/archive-release.sh "$TAG" "$GITHUB_REF_NAME"
+          else
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2>/dev/null || true
+          fi
           cat > notes.md <<EOF
           Beta build from \`${GITHUB_REF_NAME}\`. Not for general use.
 
