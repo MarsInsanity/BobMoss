@@ -35,7 +35,12 @@ while gh api "repos/${repo}/git/ref/tags/${new}" >/dev/null 2>&1; do
     n=$((n + 1))
 done
 
-gh api -X POST "repos/${repo}/git/refs" -f ref="refs/tags/${new}" -f sha="$sha" >/dev/null
-gh release edit "$tag" --repo "$repo" --tag "$new"
-gh api -X DELETE "repos/${repo}/git/refs/tags/${tag}"
+# The release edit creates the new tag at --target. Creating it through the git
+# refs API is refused to the run token (403) for a commit that carries workflow
+# changes the default branch lacks, as the rg351p branch's commits do.
+gh release edit "$tag" --repo "$repo" --tag "$new" --target "$sha"
+[ "$(gh release view "$new" --repo "$repo" --json tagName -q .tagName)" = "$new" ] \
+    || { echo "::error::release ${tag} did not move to ${new}"; exit 1; }
+gh api -X DELETE "repos/${repo}/git/refs/tags/${tag}" \
+    || echo "::warning::release moved to ${new}, but the old tag ${tag} could not be deleted"
 echo "Archived release ${tag} (${sha}) as ${new}"
