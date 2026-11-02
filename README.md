@@ -76,6 +76,9 @@ Images are built on GitHub Actions, not locally. Under Actions:
   (blank = every unit in `.github/units.txt`), builds them in parallel and
   publishes them as the `beta-<branch>` prerelease. A beta never becomes the
   latest release, so spruce devices and the installer do not see it.
+  A build of `e5plus` alone is published instead as its own release tagged
+  `e5-plus-<version>` (for example `e5-plus-v0.1.8`), so an installer can pick
+  E5 Plus images by that tag prefix. It is not marked as the latest release.
 - **create-latest-release** turns a beta into a draft release tagged with its
   version. It refuses a beta that is missing any unit. Publish the draft by
   hand from the Releases page.
