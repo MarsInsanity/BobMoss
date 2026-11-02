@@ -1,0 +1,106 @@
+# G80CA (R36S clone, unit r36sclone): build and publish under the "g80ca" tag.
+#
+# Releases in this repository serve several handhelds, so the G80CA's are told
+# apart by tag alone (an installer can pick or skip them by it):
+#   g80ca               the newest G80CA build, always exactly one release
+#   g80ca-YYYY-MM-DD    each older G80CA build, by the day it was built
+# Every other release is left alone.
+#
+# With a version, this runs upstream's build-all for r36sclone, waits for it,
+# then promotes the beta-g80ca prerelease build-all publishes. Without one, it
+# only re-tags: promotes an existing beta-g80ca and files away any old G80CA
+# release still under another tag. Run it on the g80ca branch (refs/heads/g80ca:
+# the branch and the release tag share the name). This file is the clone's own;
+# build-all.yaml stays upstream's.
+
+name: g80ca release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, e.g. v0.1.9 (blank: only re-tag existing releases)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: g80ca-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/g80ca'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Build r36sclone with build-all
+        if: inputs.version != ''
+        run: |
+          set -euo pipefail
+          for t in $(gh release list --limit 200 --json tagName -q '.[].tagName' | grep '^g80ca'); do
+            if gh release view "$t" --json body -q .body | grep -qx "Version: ${VERSION}"; then
+              echo "::error::${VERSION} was already built as release ${t}"; exit 1
+            fi
+          done
+          start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run build-all.yaml --ref refs/heads/g80ca -f version="${VERSION}" -f units=r36sclone
+          id=""
+          for _ in $(seq 60); do
+            sleep 10
+            id="$(gh run list --workflow build-all.yaml --branch g80ca --event workflow_dispatch \
+                    --json databaseId,createdAt \
+                    --jq "map(select(.createdAt >= \"${start}\")) | last | .databaseId // empty")"
+            [ -n "$id" ] && break
+          done
+          [ -n "$id" ] || { echo "::error::the build-all run did not start"; exit 1; }
+          echo "build-all: ${GITHUB_SERVER_URL}/${GH_REPO}/actions/runs/${id}"
+          gh run watch "$id" --exit-status --interval 120 > /dev/null
+
+      - name: Tag the G80CA releases
+        run: |
+          set -euo pipefail
+          tag_exists() { gh api "repos/${GH_REPO}/git/ref/tags/$1" > /dev/null 2>&1; }
+          release_exists() { gh release view "$1" > /dev/null 2>&1; }
+          version_of() { gh release view "$1" --json body -q .body | sed -n 's/^Version: //p' | head -1; }
+          built_on() { gh release view "$1" --json createdAt -q .createdAt | cut -c1-10; }
+          # Move release $1 to tag $2 (created on the release's own commit) and
+          # drop the old tag, so each build sits under exactly one tag.
+          retag() {
+            local from="$1" to="$2" title="$3"
+            gh release edit "$from" --tag "$to" --title "$title"
+            if tag_exists "$from"; then gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/${from}"; fi
+            echo "release ${from} -> ${to}"
+          }
+          archive() {
+            local from="$1" day name n=2
+            day="$(built_on "$from")"
+            name="g80ca-${day}"
+            while release_exists "$name" || tag_exists "$name"; do name="g80ca-${day}-${n}"; n=$((n + 1)); done
+            retag "$from" "$name" "G80CA (R36S clone) $(version_of "$from"), built ${day}"
+          }
+
+          # Older G80CA builds under any other tag (the branch's earlier names).
+          gh release list --limit 200 --json tagName -q '.[].tagName' | while read -r t; do
+            case "$t" in g80ca|g80ca-*|beta-g80ca) continue ;; esac
+            gh release view "$t" --json assets -q '.assets[].name' | grep -q '^dArkMoss_R36SCLONE_' || continue
+            archive "$t"
+          done
+
+          if release_exists beta-g80ca; then
+            if release_exists g80ca; then archive g80ca; fi
+            # A tag left without its release would take the new one's place.
+            if tag_exists g80ca; then gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/g80ca"; fi
+            retag beta-g80ca g80ca "G80CA (R36S clone) $(version_of beta-g80ca), built $(built_on beta-g80ca)"
+          elif [ -n "${VERSION}" ]; then
+            echo "::error::build-all finished but left no beta-g80ca release"; exit 1
+          fi
+          echo "G80CA releases now:"
+          gh release list --limit 200 --json tagName,name -q '.[] | select(.tagName | startswith("g80ca")) | "\(.tagName)  \(.name)"'
