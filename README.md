@@ -124,7 +124,9 @@ and the RGA-rotated SDL2 from `rk3326_core_builds` (`CORE_BUILDS_CHIPSET` in
   and fixed High/Medium/Low/Off speeds, always full speed at 85 C. spruce's Fan
   Control app drives it with `rg552-fan set <mode>`.
 - **Releases**: built by the `build-rg552` workflow (not `build-all`; rg552 is
-  not in `.github/units.txt`). The newest build is always the release tagged
+  not in `.github/units.txt`). To build, change the version in
+  `.github/rg552-version` on the `rg552` branch (or run the workflow by hand
+  once it has run). The newest build is always the release tagged
   `RG552`, with the image, the update payload and `RG552BootSwitch.apk`; each
   new build first moves the previous one to `rg552-<date built>`. The RG552
   release is never marked latest, so the other units' update checks are
