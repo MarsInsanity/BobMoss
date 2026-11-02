@@ -8,8 +8,7 @@
 # TAG is free for the next build. No release tagged TAG: nothing to do.
 #
 # Used by build-all for device branches (the "rg351p" release always being
-# the newest RG351P build, so an installer can fetch that one tag), and by
-# archive-release.yaml to retag an older release by hand.
+# the newest RG351P build, so an installer can fetch that one tag).
 set -euo pipefail
 
 tag="$1"
