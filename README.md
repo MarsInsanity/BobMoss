@@ -79,7 +79,8 @@ Images are built on GitHub Actions, not locally. Under Actions:
   A build of `e5plus` alone is published instead as its own release tagged
   `e5-plus`, the tag the spruce installer fetches. The tag always sits on the
   newest E5 Plus build; the release that had it is retagged
-  `e5-plus-<version>`. It is not marked as the latest release.
+  `e5-plus-YYYY-MM-DD` (its publish date, Pacific time). It is not marked as
+  the latest release.
 - **create-latest-release** turns a beta into a draft release tagged with its
   version. It refuses a beta that is missing any unit. Publish the draft by
   hand from the Releases page.
