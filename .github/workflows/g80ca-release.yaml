@@ -78,6 +78,12 @@ jobs:
           gh run watch "$id" --exit-status --interval 120 > /dev/null
 
       - name: Tag the G80CA releases
+        env:
+          # RELEASE_TOKEN (repository secret): a fine-grained token with Contents
+          # and Workflows write. The run token is refused (403) when it puts a
+          # tag on a commit whose workflow files differ from the default
+          # branch's, as every g80ca commit's do (this file).
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           tag_exists() { gh api "repos/${GH_REPO}/git/ref/tags/$1" > /dev/null 2>&1; }
