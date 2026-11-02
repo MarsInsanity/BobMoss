@@ -1,0 +1,187 @@
+#!/bin/sh
+# rg552-bootswitch: choose which OS the Anbernic RG552 boots next.
+#
+# The RG552 boots the card in TF1 when that card carries a boot loader, and
+# Android from the eMMC when it does not. dArkMoss's loader is three stages in
+# the raw area at the front of the card (image_setup-rk3399.sh):
+#
+#   sector 64 idbloader, sector 16384 U-Boot, sector 24576 trust
+#
+# "android" saves the first sector of each stage into the unused gap below the
+# loader (sectors 40-42, with a marker in sector 39) and blanks the originals,
+# so the next power-on falls through to Android. "linux" copies them back.
+# Nothing else on the card is touched: the partitions start at sector 32768.
+#
+# Plain POSIX sh and dd only, so the same file runs on dArkMoss, on Android's
+# toybox (as root) and on a PC with the card in a reader:
+#
+#   rg552-bootswitch android [DEVICE]   next boot: Android   (run on dArkMoss)
+#   rg552-bootswitch linux   [DEVICE]   next boot: dArkMoss  (Android or a PC)
+#   rg552-bootswitch status  [DEVICE]   print "linux", "android" or "unknown"
+#
+# Without DEVICE, "android" uses the card dArkMoss booted from, and "linux"
+# and "status" look for the card carrying the marker.
+
+MAGIC="RG552BOOTSWITCH1"
+MARKER_SECTOR=39
+BACKUP_FIRST=40
+STAGES="64 16384 24576"
+
+say() { echo "rg552-bootswitch: $*"; }
+die() { echo "rg552-bootswitch: $*" >&2; exit 1; }
+
+if [ -d /data/local/tmp ] && [ -w /data/local/tmp ]; then
+    TMPBASE=/data/local/tmp
+else
+    TMPBASE=${TMPDIR:-/tmp}
+fi
+WORK="$TMPBASE/rg552-bootswitch.$$"
+mkdir -p "$WORK" || die "cannot create $WORK"
+trap 'rm -rf "$WORK"' EXIT INT TERM
+dd if=/dev/zero of="$WORK/zero" bs=512 count=1 2>/dev/null
+
+read_sector() {   # DEVICE SECTOR OUTFILE
+    dd if="$1" of="$3" bs=512 skip="$2" count=1 2>/dev/null && [ "$(wc -c < "$3")" -eq 512 ]
+}
+
+write_sector() {  # DEVICE SECTOR INFILE
+    dd if="$3" of="$1" bs=512 seek="$2" count=1 conv=notrunc 2>/dev/null
+}
+
+has_marker() {    # DEVICE
+    read_sector "$1" "$MARKER_SECTOR" "$WORK/marker" || return 1
+    [ "$(dd if="$WORK/marker" bs=1 count=${#MAGIC} 2>/dev/null)" = "$MAGIC" ]
+}
+
+stage_state() {   # DEVICE -> "present", "blank" or "mixed"
+    _p=0; _b=0
+    for _s in $STAGES; do
+        read_sector "$1" "$_s" "$WORK/stage" || { echo unreadable; return; }
+        if cmp -s "$WORK/stage" "$WORK/zero"; then _b=$((_b + 1)); else _p=$((_p + 1)); fi
+    done
+    if [ "$_b" = 0 ]; then echo present; elif [ "$_p" = 0 ]; then echo blank; else echo mixed; fi
+}
+
+flush() {
+    sync
+    command -v blockdev >/dev/null 2>&1 && blockdev --flushbufs "$1" 2>/dev/null
+    return 0
+}
+
+# Whole-disk block devices worth reading sector 39 of.
+candidates() {
+    for d in /dev/block/mmcblk[0-9] /dev/block/mmcblk[0-9][0-9] /dev/block/sd[a-z] \
+             /dev/mmcblk[0-9] /dev/mmcblk[0-9][0-9] /dev/sd[a-z] /dev/rdisk[0-9] /dev/rdisk[0-9][0-9]; do
+        [ -b "$d" ] || [ -c "$d" ] || continue
+        echo "$d"
+    done
+}
+
+find_marked() {
+    for d in $(candidates); do
+        has_marker "$d" && { echo "$d"; return 0; }
+    done
+    return 1
+}
+
+# The disk dArkMoss booted from (the one holding /boot).
+boot_disk() {
+    _src=$(findmnt -no SOURCE /boot 2>/dev/null)
+    [ -n "$_src" ] || return 1
+    _pk=$(lsblk -no PKNAME "$_src" 2>/dev/null | head -n 1)
+    [ -n "$_pk" ] && [ -b "/dev/$_pk" ] && echo "/dev/$_pk"
+}
+
+to_android() {
+    DEV=${1:-$(boot_disk)}
+    [ -n "$DEV" ] || die "cannot tell which card dArkMoss booted from; give the device"
+    case "$(stage_state "$DEV")" in
+        present) ;;
+        blank)
+            has_marker "$DEV" && { say "$DEV already boots Android next"; return 0; }
+            die "$DEV has no boot loader and no saved copy; refusing to touch it" ;;
+        *) die "$DEV has a partial boot loader; refusing to touch it" ;;
+    esac
+
+    # Marker, then the saved copies, each read back before anything is blanked.
+    printf '%s\nstages=%s\nsaved_at=%s\n' "$MAGIC" "$(echo $STAGES | tr ' ' ',')" "$BACKUP_FIRST" \
+        | dd of="$WORK/marker.new" bs=512 count=1 conv=sync 2>/dev/null
+    i=0
+    for s in $STAGES; do
+        read_sector "$DEV" "$s" "$WORK/s$i" || die "cannot read sector $s of $DEV"
+        write_sector "$DEV" $((BACKUP_FIRST + i)) "$WORK/s$i" || die "cannot save sector $s"
+        i=$((i + 1))
+    done
+    write_sector "$DEV" "$MARKER_SECTOR" "$WORK/marker.new" || die "cannot write the marker"
+    flush "$DEV"
+    i=0
+    for s in $STAGES; do
+        read_sector "$DEV" $((BACKUP_FIRST + i)) "$WORK/check" && cmp -s "$WORK/check" "$WORK/s$i" \
+            || die "saved copy of sector $s did not read back; nothing was blanked"
+        i=$((i + 1))
+    done
+    has_marker "$DEV" || die "marker did not read back; nothing was blanked"
+
+    # A copy on the FAT partition too, for recovery from a PC (see README there).
+    if [ -d /boot ] && [ -w /boot ] && mountpoint -q /boot 2>/dev/null; then
+        mkdir -p /boot/rg552-bootswitch 2>/dev/null &&
+            { i=0; for s in $STAGES; do cp "$WORK/s$i" "/boot/rg552-bootswitch/sector-$s.bin"; i=$((i + 1)); done; sync; }
+    fi
+
+    for s in $STAGES; do
+        write_sector "$DEV" "$s" "$WORK/zero" || die "blanking sector $s failed; run '$0 linux $DEV' to restore"
+    done
+    flush "$DEV"
+    [ "$(stage_state "$DEV")" = blank ] || die "the loader did not blank cleanly; run '$0 linux $DEV' to restore"
+    say "$DEV will boot Android next"
+}
+
+to_linux() {
+    DEV=${1:-$(find_marked)}
+    [ -n "$DEV" ] || die "no card carrying a saved dArkMoss boot loader was found"
+    if ! has_marker "$DEV"; then
+        [ "$(stage_state "$DEV")" = present ] && { say "$DEV already boots dArkMoss"; return 0; }
+        die "$DEV carries no saved boot loader"
+    fi
+    i=0
+    for s in $STAGES; do
+        read_sector "$DEV" $((BACKUP_FIRST + i)) "$WORK/s$i" || die "cannot read the saved copy of sector $s"
+        cmp -s "$WORK/s$i" "$WORK/zero" && die "the saved copy of sector $s is empty; refusing"
+        i=$((i + 1))
+    done
+    i=0
+    for s in $STAGES; do
+        write_sector "$DEV" "$s" "$WORK/s$i" || die "restoring sector $s failed"
+        i=$((i + 1))
+    done
+    flush "$DEV"
+    i=0
+    for s in $STAGES; do
+        read_sector "$DEV" "$s" "$WORK/check" && cmp -s "$WORK/check" "$WORK/s$i" \
+            || die "sector $s did not read back; run this again before rebooting"
+        i=$((i + 1))
+    done
+    # Done with the copies: clear the marker so a stale copy is never restored
+    # over a newer loader (a dArkMoss update can rewrite the loader).
+    write_sector "$DEV" "$MARKER_SECTOR" "$WORK/zero"
+    flush "$DEV"
+    say "$DEV will boot dArkMoss next"
+}
+
+status() {
+    DEV=${1:-$(find_marked || boot_disk)}
+    [ -n "$DEV" ] || { echo unknown; return 1; }
+    case "$(stage_state "$DEV")" in
+        present) echo linux ;;
+        blank)   if has_marker "$DEV"; then echo android; else echo unknown; fi ;;
+        *)       echo unknown ;;
+    esac
+}
+
+[ "$(id -u)" = 0 ] || die "must run as root"
+case "$1" in
+    android) to_android "$2" ;;
+    linux)   to_linux "$2" ;;
+    status)  status "$2" ;;
+    *) echo "usage: $0 android|linux|status [DEVICE]" >&2; exit 2 ;;
+esac

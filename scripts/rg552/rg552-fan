@@ -1,0 +1,145 @@
+#!/bin/bash
+# rg552-fan: the Anbernic RG552's fan, owned by userspace.
+#
+# The kernel's thermal zones do not drive the fan on dArkMoss (see
+# patches/rg552/kernel/0001): this does, so a fixed speed picked in spruce's
+# Fan Control app is not overridden by a trip point a second later.
+#
+#   rg552-fan daemon          run the control loop (rg552-fan.service)
+#   rg552-fan set MODE        auto | high | medium | low | off   (persists)
+#   rg552-fan get             print the saved mode
+#   rg552-fan status          mode, temperature (C) and current PWM (0-255)
+#
+# Whatever the mode, the fan goes to full speed at 85 C and stays there until
+# the SoC is back under 80 C: "off" and "low" are quiet, not unsafe.
+
+MODE_FILE=/var/lib/rg552/fan-mode
+STATUS_FILE=/run/rg552-fan.status
+DEFAULT_MODE=auto
+
+HIGH_PWM=255
+MEDIUM_PWM=170
+LOW_PWM=100
+
+# Auto: rising thresholds (millidegrees) and the PWM each one selects. Falling
+# back a step needs the temperature HYST below that step's threshold.
+AUTO_TEMPS=(70000 62000 55000 47000)
+AUTO_PWMS=(255 200 150 100)
+HYST=3000
+OVERHEAT=85000
+OVERHEAT_CLEAR=80000
+
+fan_pwm_node() {
+    local h
+    for h in /sys/class/hwmon/hwmon*; do
+        case "$(cat "$h/name" 2>/dev/null)" in
+            pwmfan|pwm-fan|pwm_fan) [ -w "$h/pwm1" ] && { echo "$h/pwm1"; return 0; } ;;
+        esac
+    done
+    for h in /sys/devices/platform/pwm-fan/hwmon/hwmon*/pwm1; do
+        [ -w "$h" ] && { echo "$h"; return 0; }
+    done
+    return 1
+}
+
+# Hottest thermal zone (the SoC and GPU zones on RK3399), in millidegrees.
+soc_temp() {
+    local z t max=0
+    for z in /sys/class/thermal/thermal_zone*/temp; do
+        t=$(cat "$z" 2>/dev/null) || continue
+        case "$t" in ''|*[!0-9]*) continue ;; esac
+        [ "$t" -gt "$max" ] && max=$t
+    done
+    echo "$max"
+}
+
+get_mode() {
+    local m
+    m=$(cat "$MODE_FILE" 2>/dev/null)
+    case "$m" in auto|high|medium|low|off) echo "$m" ;; *) echo "$DEFAULT_MODE" ;; esac
+}
+
+set_mode() {
+    case "$1" in
+        auto|high|medium|low|off) ;;
+        mid|middle) set -- medium ;;
+        *) echo "usage: rg552-fan set auto|high|medium|low|off" >&2; return 2 ;;
+    esac
+    mkdir -p "$(dirname "$MODE_FILE")"
+    echo "$1" > "$MODE_FILE.tmp" && mv -f "$MODE_FILE.tmp" "$MODE_FILE"
+    sync "$MODE_FILE" 2>/dev/null
+    # Apply now rather than at the daemon's next tick, so the app's change is
+    # heard straight away; the daemon keeps it from here.
+    if systemctl is-active --quiet rg552-fan.service 2>/dev/null; then
+        systemctl kill -s USR1 rg552-fan.service 2>/dev/null
+    else
+        apply_once >/dev/null
+    fi
+    echo "$1"
+}
+
+AUTO_LEVEL=-1     # index into AUTO_* last chosen, -1 = below the lowest step
+OVERHEATED=0
+
+auto_pwm() {
+    local t=$1 i new=-1
+    for i in "${!AUTO_TEMPS[@]}"; do
+        if [ "$t" -ge "${AUTO_TEMPS[$i]}" ]; then new=$i; break; fi
+    done
+    # Hysteresis: only step down once clear of the current step's threshold.
+    if [ "$AUTO_LEVEL" -ge 0 ] && { [ "$new" -lt 0 ] || [ "$new" -gt "$AUTO_LEVEL" ]; }; then
+        [ "$t" -gt $(( AUTO_TEMPS[AUTO_LEVEL] - HYST )) ] && new=$AUTO_LEVEL
+    fi
+    AUTO_LEVEL=$new
+    # A global, not an echo: run in $(...) this would forget AUTO_LEVEL.
+    if [ "$new" -ge 0 ]; then AUTO_PWM=${AUTO_PWMS[$new]}; else AUTO_PWM=0; fi
+}
+
+apply_once() {
+    local node mode t pwm
+    node=$(fan_pwm_node) || { echo "no fan" > "$STATUS_FILE" 2>/dev/null; return 1; }
+    mode=$(get_mode)
+    t=$(soc_temp)
+    case "$mode" in
+        high)   pwm=$HIGH_PWM ;;
+        medium) pwm=$MEDIUM_PWM ;;
+        low)    pwm=$LOW_PWM ;;
+        off)    pwm=0 ;;
+        *)      auto_pwm "$t"; pwm=$AUTO_PWM ;;
+    esac
+    if [ "$t" -ge "$OVERHEAT" ]; then
+        OVERHEATED=1
+    elif [ "$t" -lt "$OVERHEAT_CLEAR" ]; then
+        OVERHEATED=0
+    fi
+    [ "$OVERHEATED" = 1 ] && pwm=255
+    [ "$(cat "$node" 2>/dev/null)" = "$pwm" ] || echo "$pwm" > "$node"
+    printf 'mode=%s\ntemp=%s\npwm=%s\noverheat=%s\n' "$mode" "$((t / 1000))" "$pwm" "$OVERHEATED" \
+        > "$STATUS_FILE.tmp" 2>/dev/null && mv -f "$STATUS_FILE.tmp" "$STATUS_FILE" 2>/dev/null
+    echo "$pwm"
+}
+
+daemon() {
+    local i
+    trap ':' USR1
+    while :; do
+        apply_once >/dev/null
+        # Two seconds between readings; USR1 (a new mode) cuts the wait short.
+        for i in 1 2 3 4; do
+            sleep 0.5 & wait $! || break
+        done
+    done
+}
+
+case "$1" in
+    daemon) daemon ;;
+    set)    set_mode "$2" ;;
+    get)    get_mode ;;
+    status)
+        if [ -s "$STATUS_FILE" ] && systemctl is-active --quiet rg552-fan.service 2>/dev/null; then
+            cat "$STATUS_FILE"
+        else
+            apply_once >/dev/null; cat "$STATUS_FILE" 2>/dev/null
+        fi ;;
+    *) echo "usage: rg552-fan daemon | set auto|high|medium|low|off | get | status" >&2; exit 2 ;;
+esac

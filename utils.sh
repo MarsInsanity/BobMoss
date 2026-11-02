@@ -36,9 +36,38 @@ else
 fi
 if [ "$CHIPSET" == "rk3326" ]; then
   export whichmali=libmali-bifrost-g31-rxp0-gbm.so
+elif [ "$CHIPSET" == "rk3399" ]; then
+  # RG552: Mali-T860 (midgard), Rockchip's r18p0 GBM blob, as AmberELEC ships it.
+  export whichmali=libmali-midgard-t86x-r18p0-gbm.so
 else
   export whichmali=libmali-bifrost-g52-g29p1.so
 fi
+
+# Christian's <chipset>_core_builds repo the userspace builds (SDL2, BatteryPlus,
+# armhf libs) come from. There is no rk3399 one: the RK3399 userspace is the
+# same RGA + KMSDRM/GBM stack as rk3326 (SDL loads EGL/GLES at run time, so the
+# GPU blob does not matter to the build), so it reuses rk3326's.
+if [ "$CHIPSET" == "rk3399" ]; then
+  export CORE_BUILDS_CHIPSET=rk3326
+else
+  export CORE_BUILDS_CHIPSET=${CHIPSET}
+fi
+
+# Where the libmali blob for one userspace architecture (aarch64 or armhf) is
+# downloaded from. The core_builds repos only carry bifrost blobs; the T860 one
+# comes from a pinned mirror of Rockchip's libmali.
+LIBMALI_T86X_SHA=ec78b74adc038f97cf173f4061fe3856efc0dc74
+function mali_url() {
+  if [ "$CHIPSET" == "rk3399" ]; then
+    if [ "$1" == "aarch64" ]; then
+      echo "https://github.com/tsukumijima/libmali-rockchip/raw/${LIBMALI_T86X_SHA}/lib/aarch64-linux-gnu/${whichmali}"
+    else
+      echo "https://github.com/tsukumijima/libmali-rockchip/raw/${LIBMALI_T86X_SHA}/lib/arm-linux-gnueabihf/${whichmali}"
+    fi
+  else
+    echo "https://github.com/christianhaitian/${CHIPSET}_core_builds/raw/refs/heads/master/mali/$1/${whichmali}"
+  fi
+}
 
 function verify_action() {
   code=$?
@@ -125,7 +154,7 @@ function setup_arkbuild32() {
     sudo cp -a Arkbuild32/home/ark/libgo2/libgo2.so* Arkbuild/usr/lib/arm-linux-gnueabihf/
     # Place libmali manually (assumes you have libmali.so or mali drivers ready)
     sudo mkdir -p Arkbuild32/usr/lib/arm-linux-gnueabihf/
-    wget -t 3 -T 60 --no-check-certificate https://github.com/christianhaitian/${CHIPSET}_core_builds/raw/refs/heads/master/mali/armhf/${whichmali}
+    wget -t 3 -T 60 --no-check-certificate -O ${whichmali} "$(mali_url armhf)"
     sudo mv ${whichmali} Arkbuild32/usr/lib/arm-linux-gnueabihf/.
     cd Arkbuild32/usr/lib/arm-linux-gnueabihf
     sudo ln -sf ${whichmali} libMali.so

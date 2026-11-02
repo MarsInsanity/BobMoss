@@ -157,6 +157,8 @@ case "$UNIT" in
   g350)      HW_DEVICE_NAME="G350" ;;
   v10)       HW_DEVICE_NAME="Powkiddy V10" ;;
   xumini)    HW_DEVICE_NAME="XU Mini M" ;;
+  # harbourmaster's pattern_to_device has "anbernic rg552": 1920x1152, rk3399.
+  rg552)     HW_DEVICE_NAME="Anbernic RG552" ;;
   *)         HW_DEVICE_NAME="" ;;
 esac
 if [ -n "$HW_DEVICE_NAME" ] && ! grep -q '^HW_DEVICE=' Arkbuild/etc/os-release 2>/dev/null; then
@@ -174,6 +176,7 @@ case "$UNIT" in
   g350)      SPRUCE_PLATFORM_NAME="G350" ;;
   v10)       SPRUCE_PLATFORM_NAME="V10" ;;
   xumini)    SPRUCE_PLATFORM_NAME="XUMiniM" ;;
+  rg552)     SPRUCE_PLATFORM_NAME="RG552" ;;
   *)         SPRUCE_PLATFORM_NAME="" ;;
 esac
 if [ -n "$SPRUCE_PLATFORM_NAME" ] && ! grep -q '^SPRUCE_PLATFORM=' Arkbuild/etc/os-release 2>/dev/null; then
@@ -197,6 +200,13 @@ if [ "$UNIT" == "v10" ]; then
 fi
 # fstab: the 4.4 kernel has no compression levels, so "compress=zlib:1" made
 # systemd-remount-fs fail on every boot; plain "zlib" is the same algorithm.
-if [ "$CHIPSET" == "rk3326" ]; then
+if [ "$CHIPSET" == "rk3326" ] || [ "$CHIPSET" == "rk3399" ]; then
   sudo sed -i 's/compress=zlib:1/compress=zlib/' Arkbuild/etc/fstab
+fi
+# RG552: root and boot by PARTUUID, see finishing_touches.sh (fstab.exfat).
+if [ "$CHIPSET" == "rk3399" ]; then
+  sudo sed -i -e 's|^/dev/mmcblk0p2 |PARTUUID=52473552-02 |' \
+              -e 's|^/dev/mmcblk0p1 |PARTUUID=52473552-01 |' Arkbuild/etc/fstab
+  [ "$(grep -c '^PARTUUID=52473552-0[12] ' Arkbuild/etc/fstab)" = 2 ]
+  verify_action
 fi

@@ -4,7 +4,7 @@
 if [ -f "Arkbuild_package_cache/${CHIPSET}/batteryplus.tar.gz" ] && [ "$(cat Arkbuild_package_cache/${CHIPSET}/batteryplus.commit)" == "$(curl -s 'https://api.github.com/repos/Mikhailzrick/knubat.components/commits?path=BatteryPlus/batteryplus.cpp&per_page=1' | jq -r '.[0].sha')" ]; then
     sudo tar -xvzpf Arkbuild_package_cache/${CHIPSET}/batteryplus.tar.gz
 else
-	call_chroot "cd /home/ark/${CHIPSET}_core_builds &&
+	call_chroot "cd /home/ark/${CORE_BUILDS_CHIPSET}_core_builds &&
 	  wget -t 5 -T 30 --no-check-certificate https://github.com/Mikhailzrick/knubat.components/raw/refs/heads/main/BatteryPlus/batteryplus.cpp &&
 	  g++ -O3 -flto -std=gnu++20 -Wall -Wextra -pedantic batteryplus.cpp -o batteryplus &&
 	  strip batteryplus &&

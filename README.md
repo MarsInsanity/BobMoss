@@ -68,6 +68,7 @@ Units:
 | g350 | G350 (RK3326) | `make g350` | `build_g350.sh` |
 | v10 | Powkiddy V10 (RK3326) | `make v10` | `build_v10.sh` |
 | xumini | MagicX XU Mini M (RK3326) | `make xumini` | `build_xumini.sh` |
+| rg552 | Anbernic RG552 (RK3399) | `make rg552` | `build_rg552.sh` |
 
 Images are built on GitHub Actions, not locally. Under Actions:
 
@@ -100,3 +101,31 @@ a name in the `HW_DEVICE` and `SPRUCE_PLATFORM` cases in
 `setup_spruce_handoff.sh` and in `build_update.sh`, and add the unit to
 `.github/units.txt`. Everything else in the pipeline already keys on `UNIT`.
 
+### Anbernic RG552 (RK3399)
+
+The RG552 is the only RK3399 unit, so it has its own kernel, loader and image
+scripts (`build_kernel-rk3399.sh`, `image_setup-rk3399.sh`) and otherwise
+follows the rk3326 units: MBR card, FAT `/boot` + btrfs rootfs, Rockchip 4.4
+BSP kernel, the Mali blob (here Mali-T860, `libmali-midgard-t86x-r18p0-gbm`)
+and the RGA-rotated SDL2 from `rk3326_core_builds` (`CORE_BUILDS_CHIPSET` in
+`utils.sh`).
+
+- **Kernel**: AmberELEC's `kernel_rg552` (pinned) with AmberELEC's RG552 config
+  and patches, plus `patches/rg552/kernel/`: GT927 touch through the in-tree
+  goodix driver (with `touchscreen-inverted-x/-y` support), the fan taken off
+  the thermal zones, the USB Wi-Fi rails kept on, stable mmc aliases.
+- **Wi-Fi**: the internal RTL8188FU (USB) through kelebek333's out-of-tree
+  driver, built against that kernel. There is no Bluetooth radio.
+- **Boot**: Rockchip DDR init + miniloader, mainline U-Boot (`evb-rk3399`) and
+  rkbin's BL31, reading `/extlinux/extlinux.conf`. The root is found by
+  `PARTUUID=52473552-02`; the disk id is fixed at build time so in-place updates
+  keep booting. No initramfs.
+- **Fan**: `rg552-fan` (`scripts/rg552/`), a userspace loop with an Auto curve
+  and fixed High/Medium/Low/Off speeds, always full speed at 85 C. spruce's Fan
+  Control app drives it with `rg552-fan set <mode>`.
+- **Android**: Android stays on the eMMC. `rg552-bootswitch android` (spruce's
+  Boot to Android app) saves the first sector of each loader stage into the
+  unused sectors 40-42 of TF1 and blanks them, so the next boot falls through to
+  Android; `rg552-bootswitch linux` copies them back. The Android side is the
+  "RG552 Boot Switch" app in `android/rg552-bootswitch/` (needs root), and the
+  same script is on the card's FAT partition for recovery from a PC.

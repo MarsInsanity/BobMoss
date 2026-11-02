@@ -1,0 +1,12 @@
+[Unit]
+Description=Anbernic RG552 fan control (auto curve or a fixed speed)
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/rg552-fan daemon
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -45,6 +45,9 @@ else
   INITRD_LOAD_LINE='load mmc 1:1 ${initrd_loadaddr} uInitrd'
   BOOTI_LINE='booti ${loadaddr} ${initrd_loadaddr} ${dtb_loadaddr}'
 fi
+# RK3399 (RG552) boots mainline U-Boot, which reads the extlinux.conf
+# build_kernel-rk3399.sh wrote, not the odroidgoa boot.ini.
+if [ "$CHIPSET" != "rk3399" ]; then
 cat <<EOF | sudo tee ${mountpoint}/boot.ini
 odroidgoa-uboot-config
 
@@ -63,6 +66,7 @@ load mmc 1:1 \${dtb_loadaddr} ${BOOT_DTB}
 
 ${BOOTI_LINE}
 EOF
+fi
 
 if [ "$UNIT" == "xumini" ]; then
   # Portrait panel: U-Boot copies the BMP as-is, so the G350's logo is turned 90 degrees
@@ -155,13 +159,22 @@ fi
 # systemd-remount-fs on every boot; plain "zlib" is the same algorithm. This is
 # the fstab firstboot installs (expandtoexfat), the image's own is fixed in
 # setup_spruce_handoff.sh.
-if [ "$CHIPSET" == "rk3326" ]; then
+if [ "$CHIPSET" == "rk3326" ] || [ "$CHIPSET" == "rk3399" ]; then
   ROOT_FILESYSTEM_MOUNT_OPTIONS="${ROOT_FILESYSTEM_MOUNT_OPTIONS//compress=zlib:1/compress=zlib}"
 fi
+if [ "$CHIPSET" == "rk3399" ]; then
+  # RG552: two SD slots and the 4.4 kernel numbers mmcblk by detection order,
+  # so by PARTUUID (the disk id image_setup-rk3399.sh fixes), like the cmdline.
+  ROOT_FSTAB_DEV="PARTUUID=52473552-02"
+  BOOT_FSTAB_DEV="PARTUUID=52473552-01"
+else
+  ROOT_FSTAB_DEV="/dev/mmcblk0p2"
+  BOOT_FSTAB_DEV="/dev/mmcblk0p1"
+fi
 cat <<EOF | sudo tee ${mountpoint}/fstab.exfat
-/dev/mmcblk0p2 / ${ROOT_FILESYSTEM_FORMAT} ${ROOT_FILESYSTEM_MOUNT_OPTIONS} 0 0
+${ROOT_FSTAB_DEV} / ${ROOT_FILESYSTEM_FORMAT} ${ROOT_FILESYSTEM_MOUNT_OPTIONS} 0 0
 
-/dev/mmcblk0p1 /boot vfat defaults 0 2
+${BOOT_FSTAB_DEV} /boot vfat defaults 0 2
 EOF
 
 # Logging README, on the FAT partition because that is the only thing on TF1 a

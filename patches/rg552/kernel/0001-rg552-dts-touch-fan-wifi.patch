@@ -1,0 +1,156 @@
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts b/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
+index 05a02ae..9e04067 100755
+--- a/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
+@@ -16,7 +16,7 @@
+ 
+ / {
+ 	model = "Anbernic RG552";
+-	compatible = "rockchip,rk3326-rg552-linux", "rockchip,rk3399";
++	compatible = "anbernic,rg552", "rockchip,rk3399-rg552-linux", "rockchip,rk3399";
+ 
+ 	gpio_keys: volume-keys {
+ 			compatible = "gpio-keys";
+@@ -213,6 +213,9 @@
+ 	aliases {
+ 		ethernet0 = &gmac;
+ 		uart0 = &uart0;
++		mmc0 = &sdmmc;
++		mmc1 = &sdio0;
++		mmc2 = &sdhci;
+ 	};
+ 
+ 	xin32k: xin32k {
+@@ -305,10 +308,22 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&wifi_pwr>;
+ 		regulator-name = "vcc1v8_wifi";
++		regulator-always-on;
+ 		regulator-boot-on;
+ 		vin-supply = <&vcc_1v8>;
+ 	};
+ 
++	/* dArkMoss: enable switch of the internal USB Wi-Fi module (GPIO 113). */
++	vcc_wifi_usb: vcc-wifi-usb {
++		compatible = "regulator-fixed";
++		enable-active-high;
++		gpio = <&gpio3 RK_PC1 GPIO_ACTIVE_HIGH>;
++		regulator-name = "vcc_wifi_usb";
++		regulator-always-on;
++		regulator-boot-on;
++		vin-supply = <&vcc1v8_wifi>;
++	};
++
+ 	vcc12v_pcie: vcc12v-pcie-regulator {
+ 		compatible = "regulator-fixed";
+ 		regulator-min-microvolt = <12000000>;
+@@ -497,7 +512,8 @@
+ 		wifi_chip_type = "ap6359sa";
+ 		sdio_vref = <1800>;
+ 		WIFI,host_wake_irq = <&gpio0 RK_PA3 GPIO_ACTIVE_HIGH>;
+-		status = "okay";
++		/* dArkMoss: no SDIO Wi-Fi on this board, see vcc_wifi_usb */
++		status = "disabled";
+ 	};
+ 
+ 	wireless-bluetooth {
+@@ -513,7 +529,8 @@
+ 		BT,reset_gpio    = <&gpio0 RK_PB1 GPIO_ACTIVE_HIGH>;
+ 		BT,wake_gpio     = <&gpio2 RK_PD3 GPIO_ACTIVE_HIGH>;
+ 		BT,wake_host_irq = <&gpio0 RK_PA4 GPIO_ACTIVE_HIGH>;
+-		status = "okay";
++		/* dArkMoss: no Bluetooth radio on this board */
++		status = "disabled";
+ 	};
+ 
+ 	backlight: backlight {
+@@ -1143,16 +1160,23 @@
+ 	};
+ 
+ 
+-gt9xx: gt9xx@14 {
+-	compatible = "goodix,gt9xx";
+-	reg = <0x14>;
+-	touch-gpio = <&gpio3 RK_PD7 IRQ_TYPE_EDGE_RISING>;
+-	reset-gpio = <&gpio3 RK_PD6 GPIO_ACTIVE_LOW>;
+-	max-x = <1152>;
+-	max-y = <1920>;
+-	tp-size = <911>;
+-	status = "disable";
+-};
++	/*
++	 * dArkMoss: GT927 through the in-tree goodix driver. Its reset line is
++	 * released by the hog on gpio3 below, with INT pulled up, which selects
++	 * address 0x14. Coordinates are reported in the panel's native portrait
++	 * frame (1152x1920); userspace applies the 270 degree panel rotation.
++	 */
++	touchscreen@14 {
++		compatible = "goodix,gt927";
++		reg = <0x14>;
++		interrupt-parent = <&gpio3>;
++		interrupts = <RK_PD7 IRQ_TYPE_EDGE_FALLING>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&touch_int>;
++		touchscreen-inverted-x;
++		touchscreen-inverted-y;
++		status = "okay";
++	};
+ 
+ 
+ };
+@@ -1422,23 +1446,11 @@ gt9xx: gt9xx@14 {
+ 	temperature = <85000>;
+ };
+ 
+-&cooling_maps {
+-	map3 {
+-		trip = <&threshold>;
+-		cooling-device = <&fan0 0 1>;
+-		contribution = <4096>;
+-	};
+-	map4 {
+-		trip = <&target>;
+-		cooling-device = <&fan0 1 2>;
+-		contribution = <4096>;
+-	};
+-	map5 {
+-		trip = <&soc_crit>;
+-		cooling-device = <&fan0 2 3>;
+-		contribution = <4096>;
+- 	};
+- };
++/*
++ * dArkMoss: the pwm-fan is not bound to the thermal zone. rg552-fan.service
++ * runs the fan (Auto curve or a fixed High/Medium/Low/Off), and a governor
++ * writing cur_state underneath it would fight every manual setting.
++ */
+ 
+ &tcphy0 {
+ 	extcon = <&fusb0>;
+@@ -1734,6 +1746,12 @@ gt9xx: gt9xx@14 {
+ 							<3 RK_PD5 RK_FUNC_GPIO &pcfg_pull_up>;
+ 			};
+ 	};
++	touchscreen {
++		touch_int: touch-int {
++			rockchip,pins = <3 RK_PD7 RK_FUNC_GPIO &pcfg_pull_up>;
++		};
++	};
++
+ 	lcd_en {
+ 		lcd_en_gpio: lcd-en-gpio {
+ 			rockchip,pins =
+@@ -1742,3 +1760,13 @@ gt9xx: gt9xx@14 {
+ 		};
+ 	};
+ };
++
++/* dArkMoss: release the touch controller from reset at boot. */
++&gpio3 {
++	touch-reset-hog {
++		gpio-hog;
++		gpios = <RK_PD6 GPIO_ACTIVE_HIGH>;
++		output-high;
++		line-name = "touch-reset";
++	};
++};

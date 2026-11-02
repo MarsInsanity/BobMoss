@@ -26,6 +26,7 @@ case "$UNIT" in
   g350)      DMUPD_PLATFORM="G350" ;;
   v10)       DMUPD_PLATFORM="V10" ;;
   xumini)    DMUPD_PLATFORM="XUMiniM" ;;
+  rg552)     DMUPD_PLATFORM="RG552" ;;
   *)         DMUPD_PLATFORM="" ;;
 esac
 
@@ -194,7 +195,7 @@ gzip -9 "$WORK/packages.tar"
 # firstboot.sh, expandtoexfat.sh and fstab.exfat are first-boot only and
 # already deleted on any device this could land on.
 mkdir -p ${mountpoint}
-if [ "$CHIPSET" = "rk3326" ]; then
+if [ "$CHIPSET" = "rk3326" ] || [ "$CHIPSET" = "rk3399" ]; then
   BOOT_LOOP=$(sudo losetup --find --show --read-only --offset $((SYSTEM_PART_START * 512)) \
     --sizelimit $(( (SYSTEM_PART_END - SYSTEM_PART_START + 1) * 512 )) ${DISK})
   sudo mount -o ro ${BOOT_LOOP} ${mountpoint}
@@ -213,7 +214,7 @@ sudo umount ${mountpoint}
 # applier writes it back whole, exactly as flashing the image would.
 # rk3326 has no resource partition; an empty resource_sha256 tells the applier.
 RESOURCE_FILE=""
-if [ "$CHIPSET" != "rk3326" ]; then
+if [ "$CHIPSET" != "rk3326" ] && [ "$CHIPSET" != "rk3399" ]; then
   sudo dd if=${LOOP_DEV}p2 bs=1M 2>/dev/null | gzip -c > "$WORK/resource.img.gz"
   RESOURCE_FILE=resource.img.gz
 fi
@@ -222,7 +223,7 @@ fi
 # rk3326: idbloader, U-Boot and trust, sectors 64 up to the boot partition, as
 # flashing the image would write them. rk3566 stays out: empty loader_sha256.
 LOADER_FILE=""
-if [ "$CHIPSET" = "rk3326" ]; then
+if [ "$CHIPSET" = "rk3326" ] || [ "$CHIPSET" = "rk3399" ]; then
   sudo dd if=${DISK} bs=512 skip=64 count=$((SYSTEM_PART_START - 64)) 2>/dev/null | gzip -c > "$WORK/loader.img.gz"
   LOADER_FILE=loader.img.gz
 fi
