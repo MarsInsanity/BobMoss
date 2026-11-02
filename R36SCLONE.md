@@ -36,7 +36,7 @@ the clone is in files of its own:
 | Path | What |
 | --- | --- |
 | `build_r36sclone.sh` | The build: applies `patches/r36sclone/build/*.patch`, then runs upstream's `build_g350.sh` with `UNIT=r36sclone`, then takes the patches back out. |
-| `patches/r36sclone/build/` | The clone's additions to the shared build scripts (`build_kernel.sh`, `image_setup.sh`, `finishing_touches.sh`, `setup_spruce_handoff.sh`, `build_update.sh`, `scripts/spruce/dmupd-apply.sh`, `scripts/00-header`), applied only while the clone builds. `0002` is a general fix (game saves on power-off) kept for this unit. |
+| `patches/r36sclone/build/` | The clone's additions to the shared build scripts (`build_kernel.sh`, `image_setup.sh`, `finishing_touches.sh`, `setup_spruce_handoff.sh`, `build_update.sh`, `scripts/spruce/dmupd-apply.sh`, `scripts/00-header`), applied only while the clone builds. |
 | `patches/r36sclone/kernel/series/` | Kernel: the board's two dts and lcdyk0517's joypad driver. |
 | `patches/r36sclone/uboot/` | U-Boot: the G80CA board dts and its two panels. |
 | `scripts/r36sclone/` | `hpjackd`, the headphone switch. |
