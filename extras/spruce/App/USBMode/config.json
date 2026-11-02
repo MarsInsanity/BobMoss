@@ -1,0 +1,10 @@
+{
+  "label": "USB Mode",
+  "icon": "usb.png",
+  "launch": "launch.sh",
+  "description": "Switch the OTG port between WiFi dongle and ADB",
+  "devices": [
+    "G350"
+  ],
+  "hideInSimpleMode": true
+}
