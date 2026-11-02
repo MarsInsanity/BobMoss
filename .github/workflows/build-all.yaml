@@ -153,6 +153,7 @@ jobs:
           # Workflows write on this repo; without it, fall back to the
           # workflow token.
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
           TAG: ${{ needs.plan.outputs.tag }}
           VERSION: ${{ inputs.version }}
           UNITS: ${{ needs.plan.outputs.units }}
@@ -181,6 +182,7 @@ jobs:
             exit 0
           fi
           if [ "$TAG" = e5-plus ]; then
+            [ "$HAS_RELEASE_TOKEN" = true ] || { echo "::error::E5 Plus releases need the RELEASE_TOKEN secret (fine-grained token, Contents + Workflows read/write on this repo); the workflow token gets HTTP 403 creating their tags"; exit 1; }
             # Move the e5-plus tag: the release that has it now keeps its
             # assets under e5-plus-YYYY-MM-DD, its publish date in Pacific
             # time (-2, -3, ... if that day already has one).
