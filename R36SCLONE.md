@@ -4,9 +4,9 @@ This repository is [spruceUI/dArkMoss](https://github.com/spruceUI/dArkMoss)
 plus one extra unit, `r36sclone`, on branch `g80ca`. Everything else is
 upstream's, unchanged; see [README.md](README.md) for dArkMoss itself.
 
-Build it with `make r36sclone`, or in GitHub Actions with the
-**g80ca release** workflow (`.github/workflows/g80ca-release.yaml`) on branch
-`g80ca`, giving it the version.
+Build it with `make r36sclone`. In GitHub Actions, put the new version in
+`.github/g80ca-version` on branch `g80ca` and push: the **g80ca release**
+workflow (`.github/workflows/g80ca-release.yaml`) builds it and publishes it.
 
 ## Releases
 
@@ -18,13 +18,14 @@ apart by their tag:
   (`-2`, `-3`... for a second build the same day).
 
 An installer can pick the G80CA's builds, or skip them, by tag alone. The
-g80ca release workflow runs upstream's build-all for `r36sclone`, waits for it,
-moves the previous `g80ca` release to its dated tag and the new
-`beta-g80ca` prerelease to `g80ca`. Run without a version, it only re-tags.
+g80ca release workflow runs upstream's build-all for `r36sclone` (or waits for
+one already running), then moves the previous `g80ca` release to its dated
+tag and the new `beta-g80ca` prerelease to `g80ca`. When the version in
+`.github/g80ca-version` is already built, it only re-tags.
 
 The tag `g80ca` and the branch `g80ca` share a name, so name the branch in
 full where git could take either: `git push origin HEAD:refs/heads/g80ca`,
-and `refs/heads/g80ca` as the ref when starting a workflow.
+and `refs/heads/g80ca` as the ref when starting a workflow by hand.
 
 ## How the clone stays out of upstream's files
 
@@ -41,7 +42,7 @@ the clone is in files of its own:
 | `scripts/r36sclone/` | `hpjackd`, the headphone switch. |
 | `logos/r36sclone/` | Boot logos (drawn with `patches/r36sclone/make-logo.patch`). |
 | `extras/spruce/App/USBMode/` | spruce app: OTG port as WiFi host or wired adbd. |
-| `.github/workflows/g80ca-release.yaml` | Builds and publishes under the `g80ca` tags (see Releases). |
+| `.github/workflows/g80ca-release.yaml`, `.github/g80ca-version` | Builds and publishes under the `g80ca` tags (see Releases). |
 | `.github/upstream-sync.json` | What the daily upstream check last reviewed. |
 
 ## Keeping up with upstream

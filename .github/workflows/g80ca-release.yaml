@@ -6,22 +6,24 @@
 #   g80ca-YYYY-MM-DD    each older G80CA build, by the day it was built
 # Every other release is left alone.
 #
-# With a version, this runs upstream's build-all for r36sclone, waits for it,
-# then promotes the beta-g80ca prerelease build-all publishes. Without one, it
-# only re-tags: promotes an existing beta-g80ca and files away any old G80CA
-# release still under another tag. Run it on the g80ca branch (refs/heads/g80ca:
-# the branch and the release tag share the name). This file is the clone's own;
-# build-all.yaml stays upstream's.
+# To build, put the new version in .github/g80ca-version on the g80ca branch
+# and push. This runs upstream's build-all for r36sclone (or waits for one
+# already running), then promotes the beta-g80ca prerelease build-all
+# publishes. When the version is already built, it only re-tags: promotes an
+# existing beta-g80ca and files away any old G80CA release still under another
+# tag. A push is the trigger because GitHub only dispatches workflows found on
+# the default branch, which stays a mirror of upstream; this file is the
+# clone's own, and build-all.yaml stays upstream's.
 
 name: g80ca release
 
 on:
+  push:
+    branches: [g80ca]
+    paths:
+      - ".github/g80ca-version"
+      - ".github/workflows/g80ca-release.yaml"
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to build, e.g. v0.1.9 (blank: only re-tag existing releases)"
-        required: false
-        default: ""
 
 permissions:
   contents: write
@@ -39,15 +41,26 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      VERSION: ${{ inputs.version }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Build r36sclone with build-all
-        if: inputs.version != ''
         run: |
           set -euo pipefail
-          for t in $(gh release list --limit 200 --json tagName -q '.[].tagName' | grep '^g80ca'); do
+          VERSION="$(tr -d '[:space:]' < .github/g80ca-version)"
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::.github/g80ca-version must hold a version like v1.2.3"; exit 1; }
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          # A build already running on the branch: wait for it rather than start a second.
+          running="$(gh run list --workflow build-all.yaml --branch g80ca --json databaseId,status \
+                       --jq 'map(select(.status != "completed")) | first | .databaseId // empty')"
+          if [ -n "$running" ]; then
+            echo "waiting for build-all ${GITHUB_SERVER_URL}/${GH_REPO}/actions/runs/${running}"
+            gh run watch "$running" --exit-status --interval 120 > /dev/null
+            exit 0
+          fi
+          for t in $(gh release list --limit 200 --json tagName -q '.[].tagName' | grep -E '^(g80ca|beta-g80ca)' || true); do
             if gh release view "$t" --json body -q .body | grep -qx "Version: ${VERSION}"; then
-              echo "::error::${VERSION} was already built as release ${t}"; exit 1
+              echo "${VERSION} is already built (release ${t}): only re-tagging"; exit 0
             fi
           done
           start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -99,8 +112,8 @@ jobs:
             # A tag left without its release would take the new one's place.
             if tag_exists g80ca; then gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/g80ca"; fi
             retag beta-g80ca g80ca "G80CA (R36S clone) $(version_of beta-g80ca), built $(built_on beta-g80ca)"
-          elif [ -n "${VERSION}" ]; then
-            echo "::error::build-all finished but left no beta-g80ca release"; exit 1
+          elif ! release_exists g80ca; then
+            echo "::error::no beta-g80ca or g80ca release: build-all published nothing"; exit 1
           fi
           echo "G80CA releases now:"
           gh release list --limit 200 --json tagName,name -q '.[] | select(.tagName | startswith("g80ca")) | "\(.tagName)  \(.name)"'
