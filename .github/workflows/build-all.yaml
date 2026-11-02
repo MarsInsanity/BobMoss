@@ -147,7 +147,12 @@ jobs:
 
       - name: Publish the beta
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The workflow token cannot create tags on commits whose workflow
+          # files differ from the default branch (HTTP 403), which every e5plus
+          # commit does. RELEASE_TOKEN is a fine-grained token with Contents and
+          # Workflows write on this repo; without it, fall back to the
+          # workflow token.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
           VERSION: ${{ inputs.version }}
           UNITS: ${{ needs.plan.outputs.units }}
