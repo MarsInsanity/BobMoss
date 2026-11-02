@@ -56,7 +56,8 @@ jobs:
 
       # An E5 Plus-only build is published as its own release tagged e5-plus,
       # the tag the spruce installer fetches. The tag always sits on the newest
-      # E5 Plus build: the release that had it is retagged e5-plus-<version>.
+      # E5 Plus build: the release that had it is retagged e5-plus-YYYY-MM-DD
+      # (its publish date, Pacific time).
       # Any other set of units goes to the beta-<branch> prerelease.
       - name: Pick the release tag
         id: tag
@@ -69,9 +70,9 @@ jobs:
           if [ "$UNITS" = '["e5plus"]' ]; then
             TAG="e5-plus"
             if [ "$REPLACE" != true ]; then
-              CUR="$(gh release view e5-plus --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)"
-              if gh release view "e5-plus-${VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-                 || grep -qx "Version: ${VERSION}" <<<"${CUR//$'\r'/}"; then
+              # Every E5 Plus release keeps its "GameMT E5 Plus <version>" title.
+              TITLES="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json name -q '.[].name')"
+              if grep -qx "GameMT E5 Plus ${VERSION}" <<<"$TITLES"; then
                 echo "::error::E5 Plus ${VERSION} is already released (use replace to rebuild it)"; exit 1
               fi
             fi
@@ -176,15 +177,19 @@ jobs:
           fi
           if [ "$TAG" = e5-plus ]; then
             # Move the e5-plus tag: the release that has it now keeps its
-            # assets under e5-plus-<its version>.
-            if gh release view e5-plus --repo "$GITHUB_REPOSITORY" --json body -q .body > old.md 2>/dev/null; then
-              OLD="$(tr -d '\r' < old.md | sed -n '/^Version: /{s///p;q}')"
-              [[ "$OLD" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::the e5-plus release has no version in its notes"; exit 1; }
+            # assets under e5-plus-YYYY-MM-DD, its publish date in Pacific
+            # time (-2, -3, ... if that day already has one).
+            if PUB="$(gh release view e5-plus --repo "$GITHUB_REPOSITORY" --json publishedAt -q .publishedAt 2>/dev/null)"; then
+              DAY="$(TZ=America/Los_Angeles date -d "$PUB" +%Y-%m-%d)"
+              OLD_TAG="e5-plus-${DAY}"; n=1
+              while gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/${OLD_TAG}" >/dev/null 2>&1; do
+                n=$((n + 1)); OLD_TAG="e5-plus-${DAY}-${n}"
+              done
               OLD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/e5-plus" -q .object.sha)"
-              gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/e5-plus-${OLD}" -f sha="$OLD_SHA" >/dev/null
-              gh release edit e5-plus --repo "$GITHUB_REPOSITORY" --tag "e5-plus-${OLD}"
+              gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/${OLD_TAG}" -f sha="$OLD_SHA" >/dev/null
+              gh release edit e5-plus --repo "$GITHUB_REPOSITORY" --tag "$OLD_TAG"
               gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/e5-plus"
-              echo "Moved the previous E5 Plus release ($OLD) to e5-plus-${OLD}"
+              echo "Moved the previous E5 Plus release to ${OLD_TAG}"
             fi
             cat > notes.md <<EOF
           GameMT E5 Plus build.
