@@ -66,6 +66,11 @@ scripts/config --enable AUTOFS4_FS --enable CGROUP_PIDS --enable BPF_SYSCALL
 scripts/config --enable TOUCHSCREEN_GOODIX
 # FunctionFS for adbd's USB gadget, and the mass storage gadget.
 scripts/config --enable USB_CONFIGFS_F_FS --enable USB_CONFIGFS_MASS_STORAGE
+# No SDIO Wi-Fi on the RG552 (its Wi-Fi is the USB RTL8188FU). The built-in
+# Broadcom AP6xxx driver finds no chip at boot and then "removes" the card on
+# the SDIO host, which here is TF2: the spruce card vanished ~5 s into every
+# boot (rfkill-wlan -> mmc_host_rescan -> dw_mci_set_sdio_status(0)).
+scripts/config --disable AP6XXX
 make ARCH=arm64 olddefconfig
 for opt in BTRFS_FS TOUCHSCREEN_GOODIX AUTOFS4_FS; do
   if ! grep -q "^CONFIG_${opt}=y" .config; then

@@ -27,6 +27,10 @@ LOW_PWM=100
 AUTO_TEMPS=(70000 62000 55000 47000)
 AUTO_PWMS=(255 200 150 100)
 HYST=3000
+# The slowest the fan goes. Never 0: the BSP pwm-fan disables the PWM at 0, and
+# with this board's inverted PWM an idle output runs the fan at FULL speed (as
+# at power-on). ROCKNIX never writes 0 either.
+STOP_PWM=1
 OVERHEAT=75000
 OVERHEAT_CLEAR=70000
 
@@ -93,7 +97,7 @@ auto_pwm() {
     fi
     AUTO_LEVEL=$new
     # A global, not an echo: run in $(...) this would forget AUTO_LEVEL.
-    if [ "$new" -ge 0 ]; then AUTO_PWM=${AUTO_PWMS[$new]}; else AUTO_PWM=0; fi
+    if [ "$new" -ge 0 ]; then AUTO_PWM=${AUTO_PWMS[$new]}; else AUTO_PWM=$STOP_PWM; fi
 }
 
 apply_once() {
@@ -105,7 +109,7 @@ apply_once() {
         high)   pwm=$HIGH_PWM ;;
         medium) pwm=$MEDIUM_PWM ;;
         low)    pwm=$LOW_PWM ;;
-        off)    pwm=0 ;;
+        off)    pwm=$STOP_PWM ;;
         *)      auto_pwm "$t"; pwm=$AUTO_PWM ;;
     esac
     if [ "$t" -ge "$OVERHEAT" ]; then
@@ -114,6 +118,7 @@ apply_once() {
         OVERHEATED=0
     fi
     [ "$OVERHEATED" = 1 ] && pwm=255
+    [ "$pwm" -ge "$STOP_PWM" ] || pwm=$STOP_PWM
     [ "$(cat "$node" 2>/dev/null)" = "$pwm" ] || echo "$pwm" > "$node"
     printf 'mode=%s\ntemp=%s\npwm=%s\noverheat=%s\n' "$mode" "$((t / 1000))" "$pwm" "$OVERHEATED" \
         > "$STATUS_FILE.tmp" 2>/dev/null && mv -f "$STATUS_FILE.tmp" "$STATUS_FILE" 2>/dev/null

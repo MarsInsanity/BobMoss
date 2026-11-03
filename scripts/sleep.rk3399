@@ -18,7 +18,7 @@ case $1 in
     fi
     # Quiet fan while asleep; rg552-fan sets it again on its next tick.
     for h in /sys/class/hwmon/hwmon*; do
-      [ "$(cat $h/name 2>/dev/null)" = pwmfan ] && echo 0 > $h/pwm1 2>/dev/null
+      [ "$(cat $h/name 2>/dev/null)" = pwmfan ] && echo 1 > $h/pwm1 2>/dev/null
     done
     ;;
   post)

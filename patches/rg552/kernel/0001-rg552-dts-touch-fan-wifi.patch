@@ -1,5 +1,5 @@
 diff --git a/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts b/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
-index 05a02ae..0310b5d 100755
+index 05a02ae..1f8b5d6 100755
 --- a/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
 @@ -16,7 +16,7 @@
@@ -64,7 +64,7 @@ index 05a02ae..0310b5d 100755
  	};
  
  	backlight: backlight {
-@@ -1143,16 +1160,23 @@
+@@ -1143,22 +1160,33 @@
  	};
  
  
@@ -98,7 +98,37 @@ index 05a02ae..0310b5d 100755
  
  
  };
-@@ -1385,10 +1409,13 @@ gt9xx: gt9xx@14 {
+ 
++/*
++ * dArkMoss: nothing sits on i2c8, but enabling it muxes GPIO1_C4/C5 to I2C,
++ * and those are the green battery LED and the speaker amp enable.
++ */
+ &i2c8 {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &i2s1 {
+@@ -1372,12 +1400,16 @@ gt9xx: gt9xx@14 {
+ &sdio0 {
+ 	clock-frequency = <50000000>;
+ 	max-frequency = <50000000>;
+-	supports-sdio;
++	/*
++	 * dArkMoss: TF2, an SD slot only. With supports-sdio this host becomes
++	 * the BSP's "primary SDIO host", and Rockchip's Wi-Fi code (AP6xxx
++	 * bcmdhd) "removes" its card at boot when it finds no Broadcom chip:
++	 * the spruce card vanished ~5 s into every boot.
++	 */
+ 	supports-sd;
+ 	bus-width = <4>;
+ 	disable-wp;
+ 	cap-sd-highspeed;
+-	cap-sdio-irq;
+ 	keep-power-in-suspend;
+ //	mmc-pwrseq = <&sdio_pwrseq>;
+ 	card-detect-delay = <800>;
+@@ -1385,10 +1417,13 @@ gt9xx: gt9xx@14 {
  	num-slots = <1>;
  	pinctrl-names = "default";
  	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_cd &sdio0_bus4>;
@@ -116,7 +146,7 @@ index 05a02ae..0310b5d 100755
  	vqmmc-supply = <&vcc3v0_touch>;
  	status = "okay";
  };
-@@ -1422,23 +1449,11 @@ gt9xx: gt9xx@14 {
+@@ -1422,23 +1457,11 @@ gt9xx: gt9xx@14 {
  	temperature = <85000>;
  };
  
@@ -145,7 +175,7 @@ index 05a02ae..0310b5d 100755
  
  &tcphy0 {
  	extcon = <&fusb0>;
-@@ -1734,6 +1749,12 @@ gt9xx: gt9xx@14 {
+@@ -1734,6 +1757,12 @@ gt9xx: gt9xx@14 {
  							<3 RK_PD5 RK_FUNC_GPIO &pcfg_pull_up>;
  			};
  	};
@@ -158,7 +188,7 @@ index 05a02ae..0310b5d 100755
  	lcd_en {
  		lcd_en_gpio: lcd-en-gpio {
  			rockchip,pins =
-@@ -1742,3 +1763,13 @@ gt9xx: gt9xx@14 {
+@@ -1742,3 +1771,13 @@ gt9xx: gt9xx@14 {
  		};
  	};
  };
