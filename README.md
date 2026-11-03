@@ -121,7 +121,7 @@ and the RGA-rotated SDL2 from `rk3326_core_builds` (`CORE_BUILDS_CHIPSET` in
   `PARTUUID=52473552-02`; the disk id is fixed at build time so in-place updates
   keep booting. No initramfs.
 - **Fan**: `rg552-fan` (`scripts/rg552/`), a userspace loop with an Auto curve
-  and fixed High/Medium/Low/Off speeds, always full speed at 85 C. spruce's Fan
+  and fixed High/Medium/Low/Off speeds, always full speed from 75 C. spruce's Fan
   Control app drives it with `rg552-fan set <mode>`.
 - **Releases**: built by the `build-rg552` workflow (not `build-all`; rg552 is
   not in `.github/units.txt`). To build, change the version in
@@ -132,8 +132,9 @@ and the RGA-rotated SDL2 from `rk3326_core_builds` (`CORE_BUILDS_CHIPSET` in
   release is never marked latest, so the other units' update checks are
   unaffected.
 - **Android**: Android stays on the eMMC. `rg552-bootswitch android` (spruce's
-  Boot to Android app) saves the first sector of each loader stage into the
-  unused sectors 40-42 of TF1 and blanks them, so the next boot falls through to
-  Android; `rg552-bootswitch linux` copies them back. The Android side is the
+  Boot to Android app) saves the first sector of every loader copy (idbloader,
+  each U-Boot and trust copy) into the unused sectors from 40 of TF1 and blanks
+  them, so the next boot falls through to Android; `rg552-bootswitch linux`
+  copies them back. The Android side is the
   "RG552 Boot Switch" app in `android/rg552-bootswitch/` (needs root), and the
   same script is on the card's FAT partition for recovery from a PC.
