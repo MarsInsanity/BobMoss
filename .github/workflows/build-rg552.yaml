@@ -92,6 +92,22 @@ jobs:
       # with Contents and Workflows write on this repo). The workflow token is
       # refused (HTTP 403) creating a tag on a commit whose workflow files differ
       # from the default branch's, which every rg552 commit's do.
+      # A rejected token (expired or revoked: HTTP 401) stops the job here,
+      # before anything is moved. The steps below read any failed lookup as
+      # "not there", so they must only ever run with a working token.
+      - name: Check the release token
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+          REPO: ${{ github.repository }}
+        run: |
+          [ "$HAS_RELEASE_TOKEN" = true ] || { echo "::error::RG552 releases need the RELEASE_TOKEN secret (fine-grained token, Contents + Workflows read/write on this repo)"; exit 1; }
+          if ! out="$(gh api "repos/$REPO" --jq .full_name 2>&1)"; then
+            echo "::error::GitHub rejected RELEASE_TOKEN: $out. It has most likely expired or been revoked. Save a new fine-grained token (Contents + Workflows read/write on this repo) as the RELEASE_TOKEN secret, then use 'Re-run failed jobs' on this run: the image is already built."
+            exit 1
+          fi
+          echo "RELEASE_TOKEN works for $out"
+
       - name: Move the previous RG552 build to rg552-<date built>
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
