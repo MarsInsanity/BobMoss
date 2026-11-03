@@ -75,8 +75,19 @@ echo "CONFIG_BOOTDELAY=0" >> configs/evb-rk3399_defconfig
 # /boot/darkmoss-debug (README-logging.txt on /boot): kernel and systemd text
 # on the panel, as the other units' boot.ini does it. extlinux.conf's APPEND
 # ends in ${dm_debug}, which U-Boot expands (pxe_utils); mmc 1 is TF1 here.
-echo 'CONFIG_USE_PREBOOT=y' >> configs/evb-rk3399_defconfig
-echo 'CONFIG_PREBOOT="setenv dm_debug; if test -e mmc 1:1 /darkmoss-debug; then setenv dm_debug console=tty0 loglevel=7 systemd.show_status=1 darkmoss.debug; fi"' >> configs/evb-rk3399_defconfig
+#
+# With the flag, U-Boot also leaves breadcrumbs on /boot, since the RG552 shows
+# nothing until the kernel's display driver runs: uboot-ran-<n>.txt each time it
+# starts (n counts up, so a reboot loop shows as several), and
+# uboot-boot-failed.txt if it could not start a kernel. Without the flag it
+# writes nothing.
+cat >> configs/evb-rk3399_defconfig <<'UBOOTCFG'
+CONFIG_CMD_SETEXPR=y
+CONFIG_CMD_FS_GENERIC=y
+CONFIG_FAT_WRITE=y
+CONFIG_USE_PREBOOT=y
+CONFIG_PREBOOT="setenv dm_debug; if test -e mmc 1:1 /darkmoss-debug; then setenv dm_debug console=tty0 loglevel=7 systemd.show_status=1 darkmoss.debug; setenv dm_n 1; while test -e mmc 1:1 /uboot-ran-${dm_n}.txt; do setexpr dm_n ${dm_n} + 1; done; env export -t ${scriptaddr} bootcmd boot_targets kernel_addr_r fdt_addr_r scriptaddr dm_n dm_debug; save mmc 1:1 ${scriptaddr} /uboot-ran-${dm_n}.txt ${filesize}; setenv bootcmd 'bootflow scan -lb; save mmc 1:1 ${scriptaddr} /uboot-boot-failed.txt ${filesize}'; fi"
+UBOOTCFG
 make ARCH=arm CROSS_COMPILE=${UBOOT_CROSS} evb-rk3399_defconfig
 verify_action
 make ARCH=arm CROSS_COMPILE=${UBOOT_CROSS} BL31=../rkbin-rk3399/bin/rk33/rk3399_bl31_v1.36.elf \

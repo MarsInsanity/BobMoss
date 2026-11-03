@@ -137,7 +137,7 @@ DEFAULT dArkMoss
 LABEL dArkMoss
   LINUX /Image
   FDT /${KERNEL_DTB}
-  APPEND root=PARTUUID=52473552-02 rootfstype=btrfs rootwait rw fsck.repair=yes net.ifnames=0 fbcon=rotate:${SCREEN_ROTATION} console=ttyFIQ0 quiet splash consoleblank=0 vt.global_cursor_default=0 loglevel=3 \${dm_debug}
+  APPEND root=PARTUUID=52473552-02 rootfstype=btrfs rootwait rw fsck.repair=yes net.ifnames=0 fbcon=rotate:${SCREEN_ROTATION} console=ttyFIQ0 quiet splash consoleblank=0 vt.global_cursor_default=0 loglevel=3 panic=10 \${dm_debug}
 EOF
 
 rm -rf $KERNEL_SRC
