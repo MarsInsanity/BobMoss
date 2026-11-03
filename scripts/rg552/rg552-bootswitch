@@ -7,10 +7,15 @@
 #
 #   sector 64 idbloader, sector 16384 U-Boot, sector 24576 trust
 #
+# U-Boot and trust are packed with backup copies (4 x 1 MiB from 16384, 2 x
+# 2 MiB from 24576), and Rockchip's loaders look for one every 512 KiB and take
+# the next good one. So every copy found counts as a stage.
+#
 # "android" saves the first sector of each stage into the unused gap below the
-# loader (sectors 40-42, with a marker in sector 39) and blanks the originals,
-# so the next power-on falls through to Android. "linux" copies them back.
-# Nothing else on the card is touched: the partitions start at sector 32768.
+# loader (from sector 40, with a marker in sector 39 that lists the stages) and
+# blanks the originals, so the next power-on falls through to Android. "linux"
+# copies them back. Nothing else on the card is touched: the partitions start
+# at sector 32768.
 #
 # Plain POSIX sh and dd only, so the same file runs on dArkMoss, on Android's
 # toybox (as root) and on a PC with the card in a reader:
@@ -25,7 +30,9 @@
 MAGIC="RG552BOOTSWITCH1"
 MARKER_SECTOR=39
 BACKUP_FIRST=40
-STAGES="64 16384 24576"
+# What a card switched by an older version of this script saved.
+LEGACY_STAGES="64 16384 24576"
+STAGES=""
 
 say() { echo "rg552-bootswitch: $*"; }
 die() { echo "rg552-bootswitch: $*" >&2; exit 1; }
@@ -51,6 +58,26 @@ write_sector() {  # DEVICE SECTOR INFILE
 has_marker() {    # DEVICE
     read_sector "$1" "$MARKER_SECTOR" "$WORK/marker" || return 1
     [ "$(dd if="$WORK/marker" bs=1 count=${#MAGIC} 2>/dev/null)" = "$MAGIC" ]
+}
+
+# The idbloader, then every U-Boot ("LOADER  ") and trust ("BL3X") copy, on the
+# 512 KiB grid the loaders search.
+loader_stages() {  # DEVICE
+    echo 64
+    _s=16384
+    while [ "$_s" -lt 32768 ]; do
+        read_sector "$1" "$_s" "$WORK/hdr" || break
+        case "$(dd if="$WORK/hdr" bs=1 count=4 2>/dev/null)" in
+            LOAD|BL3X) echo "$_s" ;;
+        esac
+        _s=$((_s + 1024))
+    done
+}
+
+# The stages the marker says were saved (has_marker read it into $WORK/marker).
+marker_stages() {
+    _st=$(dd if="$WORK/marker" bs=1 count=256 2>/dev/null | sed -n 's/^stages=\([0-9,]*\).*/\1/p' | head -n 1 | tr ',' ' ')
+    echo "${_st:-$LEGACY_STAGES}"
 }
 
 stage_state() {   # DEVICE -> "present", "blank" or "mixed"
@@ -95,11 +122,17 @@ boot_disk() {
 to_android() {
     DEV=${1:-$(boot_disk)}
     [ -n "$DEV" ] || die "cannot tell which card dArkMoss booted from; give the device"
+    if has_marker "$DEV"; then
+        STAGES=$(marker_stages)
+        [ "$(stage_state "$DEV")" = blank ] && { say "$DEV already boots Android next"; return 0; }
+        die "$DEV has a saved boot loader but its own is not blank; run '$0 linux $DEV' first"
+    fi
+    STAGES=$(loader_stages "$DEV" | tr '\n' ' ')
+    set -- $STAGES
+    [ "$#" -ge 3 ] || die "$DEV has no complete boot loader (found stages: $STAGES); refusing to touch it"
+    [ "$#" -le 24 ] || die "$DEV has more loader copies than fit below sector 64; refusing to touch it"
     case "$(stage_state "$DEV")" in
         present) ;;
-        blank)
-            has_marker "$DEV" && { say "$DEV already boots Android next"; return 0; }
-            die "$DEV has no boot loader and no saved copy; refusing to touch it" ;;
         *) die "$DEV has a partial boot loader; refusing to touch it" ;;
     esac
 
@@ -140,9 +173,11 @@ to_linux() {
     DEV=${1:-$(find_marked)}
     [ -n "$DEV" ] || die "no card carrying a saved dArkMoss boot loader was found"
     if ! has_marker "$DEV"; then
+        STAGES=64
         [ "$(stage_state "$DEV")" = present ] && { say "$DEV already boots dArkMoss"; return 0; }
         die "$DEV carries no saved boot loader"
     fi
+    STAGES=$(marker_stages)
     i=0
     for s in $STAGES; do
         read_sector "$DEV" $((BACKUP_FIRST + i)) "$WORK/s$i" || die "cannot read the saved copy of sector $s"
@@ -171,11 +206,20 @@ to_linux() {
 status() {
     DEV=${1:-$(find_marked || boot_disk)}
     [ -n "$DEV" ] || { echo unknown; return 1; }
-    case "$(stage_state "$DEV")" in
-        present) echo linux ;;
-        blank)   if has_marker "$DEV"; then echo android; else echo unknown; fi ;;
-        *)       echo unknown ;;
-    esac
+    if has_marker "$DEV"; then
+        STAGES=$(marker_stages)
+        case "$(stage_state "$DEV")" in
+            blank)   echo android ;;
+            present) echo linux ;;
+            *)       echo unknown ;;
+        esac
+    else
+        STAGES=64
+        case "$(stage_state "$DEV")" in
+            present) echo linux ;;
+            *)       echo unknown ;;
+        esac
+    fi
 }
 
 [ "$(id -u)" = 0 ] || die "must run as root"

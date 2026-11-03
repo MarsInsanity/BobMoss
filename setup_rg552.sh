@@ -39,11 +39,25 @@ Without the Android app, from a Linux or macOS PC with this card in a reader
   sudo sh rg552-bootswitch.sh status /dev/sdX
   sudo sh rg552-bootswitch.sh linux  /dev/sdX
 
-Only sectors 39-42, 64, 16384 and 24576 at the start of the card are ever
-read or written; no partition and no file is touched. The sector-*.bin files
-in this folder are the same saved copies, as a last resort.
+Only the first 16 MiB of the card are ever read or written (the saved copies
+in sectors 39-63, the loader from sector 64: every copy of U-Boot and trust);
+no partition and no file is touched. The sector-*.bin files in this folder are
+the same saved copies, as a last resort.
 README
 
 # Wi-Fi: the internal RTL8188FU (USB). The driver autoloads on its USB id;
 # listing it as well covers the module being probed before udev settles.
 echo rtl8188fu | sudo tee Arkbuild/etc/modules-load.d/rg552-wifi.conf >/dev/null
+
+# exFAT spruce cards in TF2: this BSP kernel has no exFAT driver (AmberELEC's
+# CONFIG_EXFAT_FS has nothing behind it here), so mount it through FUSE.
+install_package 64 exfat-fuse
+if [ ! -e Arkbuild/sbin/mount.exfat ] && [ ! -e Arkbuild/usr/sbin/mount.exfat ]; then
+  sudo ln -sf mount.exfat-fuse Arkbuild/usr/sbin/mount.exfat
+fi
+
+# Both RK3399 DWC3 ports are host-only in the RG552 dts, so there is no USB
+# device controller: skip adbd at once instead of its 10 s wait for one.
+sudo mkdir -p Arkbuild/etc/systemd/system/adbd.service.d
+printf '[Unit]\n# RG552: no USB device controller (both DWC3 ports are host-only).\nConditionDirectoryNotEmpty=/sys/class/udc\n' \
+  | sudo tee Arkbuild/etc/systemd/system/adbd.service.d/rg552-no-udc.conf >/dev/null

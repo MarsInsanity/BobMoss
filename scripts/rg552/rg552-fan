@@ -10,8 +10,9 @@
 #   rg552-fan get             print the saved mode
 #   rg552-fan status          mode, temperature (C) and current PWM (0-255)
 #
-# Whatever the mode, the fan goes to full speed at 85 C and stays there until
-# the SoC is back under 80 C: "off" and "low" are quiet, not unsafe.
+# Whatever the mode, the fan goes to full speed at 75 C (the dts's first
+# passive trip) and stays there until the SoC is back under 70 C: "off" and
+# "low" are quiet, not unsafe. 85 C is the kernel's critical trip, a power-off.
 
 MODE_FILE=/var/lib/rg552/fan-mode
 STATUS_FILE=/run/rg552-fan.status
@@ -26,8 +27,8 @@ LOW_PWM=100
 AUTO_TEMPS=(70000 62000 55000 47000)
 AUTO_PWMS=(255 200 150 100)
 HYST=3000
-OVERHEAT=85000
-OVERHEAT_CLEAR=80000
+OVERHEAT=75000
+OVERHEAT_CLEAR=70000
 
 fan_pwm_node() {
     local h
@@ -120,8 +121,11 @@ apply_once() {
 }
 
 daemon() {
-    local i
+    local i node
     trap ':' USR1
+    # The BSP pwm-fan probes at half duty yet reports 255, and ignores a write
+    # of the value it holds: move it off 255 so the first real write lands.
+    node=$(fan_pwm_node) && echo 254 > "$node" 2>/dev/null
     while :; do
         apply_once >/dev/null
         # Two seconds between readings; USR1 (a new mode) cuts the wait short.
