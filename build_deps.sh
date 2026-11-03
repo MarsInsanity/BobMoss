@@ -54,8 +54,9 @@ if [ "$DEPS_FROM_CACHE" = "y" ]; then
   sudo chroot ${CHROOT_DIR}/ ldconfig -X
   # The tarball leaves out the firmware trees, so the firmware packages come back
   # with no files. rk3566's kernel cache stages its own firmware there (BT blobs
-  # included), so only rk3326, whose kernel brings none, reinstalls them.
-  if [ "$CHIPSET" == "rk3326" ]; then
+  # included), so only rk3326 and rk3399 (RG552), whose kernels bring none,
+  # reinstall them.
+  if [ "$CHIPSET" == "rk3326" ] || [ "$CHIPSET" == "rk3399" ]; then
     FIRMWARE_PACKAGES=$(grep '^firmware-' needed_packages.txt | tr '\n' ' ')
     sudo chroot ${CHROOT_DIR}/ apt -y update
     updateapt="Y"

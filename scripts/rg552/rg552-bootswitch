@@ -27,7 +27,12 @@
 # Without DEVICE, "android" uses the card dArkMoss booted from, and "linux"
 # and "status" look for the card carrying the marker.
 
-MAGIC="RG552BOOTSWITCH1"
+# 2: the marker lists every saved stage (all loader copies). 1 (v0.2.1) saved
+# the first copy of each of three stages. A new magic, so an older copy of this
+# script (an older Android app) finds no marker and refuses, instead of putting
+# back three sectors from a seven-stage save. Both are read.
+MAGIC="RG552BOOTSWITCH2"
+LEGACY_MAGIC="RG552BOOTSWITCH1"
 MARKER_SECTOR=39
 BACKUP_FIRST=40
 # What a card switched by an older version of this script saved.
@@ -57,7 +62,8 @@ write_sector() {  # DEVICE SECTOR INFILE
 
 has_marker() {    # DEVICE
     read_sector "$1" "$MARKER_SECTOR" "$WORK/marker" || return 1
-    [ "$(dd if="$WORK/marker" bs=1 count=${#MAGIC} 2>/dev/null)" = "$MAGIC" ]
+    _m=$(dd if="$WORK/marker" bs=1 count=${#MAGIC} 2>/dev/null)
+    [ "$_m" = "$MAGIC" ] || [ "$_m" = "$LEGACY_MAGIC" ]
 }
 
 # The idbloader, then every U-Boot ("LOADER  ") and trust ("BL3X") copy, on the
@@ -124,8 +130,13 @@ to_android() {
     [ -n "$DEV" ] || die "cannot tell which card dArkMoss booted from; give the device"
     if has_marker "$DEV"; then
         STAGES=$(marker_stages)
-        [ "$(stage_state "$DEV")" = blank ] && { say "$DEV already boots Android next"; return 0; }
-        die "$DEV has a saved boot loader but its own is not blank; run '$0 linux $DEV' first"
+        case "$(stage_state "$DEV")" in
+            blank) say "$DEV already boots Android next"; return 0 ;;
+            # The loader was put back by other means (by hand, or rewritten by an
+            # update): the saved copies are stale, so save the loader afresh.
+            present) say "ignoring a stale saved loader on $DEV" ;;
+            *) die "$DEV has a partly blanked boot loader; run '$0 linux $DEV' to restore it" ;;
+        esac
     fi
     STAGES=$(loader_stages "$DEV" | tr '\n' ' ')
     set -- $STAGES

@@ -11,8 +11,9 @@
 #   sector 24576  trust.img      Rockchip BL31 (rkbin), no BL32
 #
 # U-Boot then finds /extlinux/extlinux.conf on p1 by itself (distro boot).
-# rg552-bootswitch (scripts/rg552) depends on these three offsets: it blanks
-# their first sector to hand the next boot to Android and puts them back.
+# rg552-bootswitch (scripts/rg552) finds every idbloader, U-Boot and trust copy
+# from these offsets (on the 512 KiB grid up to sector 32768), blanks each one's
+# first sector to hand the next boot to Android, and puts them back.
 
 echo -e "Setup the Image file...\n\n"
 
@@ -71,6 +72,11 @@ cd u-boot-rk3399
 # console on this handheld to interrupt it from.
 echo "# CONFIG_EFI_LOADER is not set" >> configs/evb-rk3399_defconfig
 echo "CONFIG_BOOTDELAY=0" >> configs/evb-rk3399_defconfig
+# /boot/darkmoss-debug (README-logging.txt on /boot): kernel and systemd text
+# on the panel, as the other units' boot.ini does it. extlinux.conf's APPEND
+# ends in ${dm_debug}, which U-Boot expands (pxe_utils); mmc 1 is TF1 here.
+echo 'CONFIG_USE_PREBOOT=y' >> configs/evb-rk3399_defconfig
+echo 'CONFIG_PREBOOT="setenv dm_debug; if test -e mmc 1:1 /darkmoss-debug; then setenv dm_debug console=tty0 loglevel=7 systemd.show_status=1 darkmoss.debug; fi"' >> configs/evb-rk3399_defconfig
 make ARCH=arm CROSS_COMPILE=${UBOOT_CROSS} evb-rk3399_defconfig
 verify_action
 make ARCH=arm CROSS_COMPILE=${UBOOT_CROSS} BL31=../rkbin-rk3399/bin/rk33/rk3399_bl31_v1.36.elf \
