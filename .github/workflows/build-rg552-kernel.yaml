@@ -1,0 +1,146 @@
+# Test kernels for the Anbernic RG552: build_kernel-rk3399.sh in its
+# kernel-only mode (RG552_KERNEL_ONLY=1) - the pinned kernel, AmberELEC's and
+# our patches, the same config and toolchain as the image build - published as
+# the pre-release "RG552-kernel" in minutes instead of a 2.5 h image.
+#
+# Trying one: copy Image and rk3399-rg552-linux.dtb from the release over the
+# ones on the BOOT partition of a card running an RG552 image (from any PC),
+# and reboot. Built-in drivers (touch, joypad, display ...) and the dts come
+# with those two files. A change to a loadable module also needs
+# rg552-kernel-modules.tar.gz extracted over / on the device (over SSH).
+#
+# Runs on every push to rg552 that touches the kernel patches, the kernel
+# build script or this file; changing .github/rg552-kernel-test forces one.
+# Each build replaces the previous test kernel: these are throwaway debugging
+# drops, unlike the "RG552" image releases, which keep their history.
+
+name: build-rg552-kernel
+
+on:
+  push:
+    branches: [rg552]
+    paths:
+      - "patches/rg552/kernel/**"
+      - "build_kernel-rk3399.sh"
+      - ".github/rg552-kernel-test"
+      - ".github/workflows/build-rg552-kernel.yaml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-rg552-kernel
+  cancel-in-progress: true
+
+jobs:
+  kernel:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # The same immutable Linaro toolchain the image build caches and uses.
+      - name: Restore the aarch64 toolchain cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .toolchain-cache
+          key: darkmoss-toolchain-linaro-6.3.1-2017.05
+
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache device-tree-compiler \
+            flex kmod libssl-dev lzop wget
+
+      - name: Provision the aarch64 toolchain
+        run: |
+          TCNAME=gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu
+          LOCAL="$PWD/.toolchain-cache/$TCNAME"
+          if [ ! -x "$LOCAL/bin/aarch64-linux-gnu-ld" ]; then
+            mkdir -p .toolchain-cache
+            git clone --depth=1 https://github.com/christianhaitian/${TCNAME}.git "$LOCAL"
+          fi
+          sudo mkdir -p /opt/toolchains
+          sudo ln -sfn "$LOCAL" "/opt/toolchains/$TCNAME"
+          "/opt/toolchains/$TCNAME/bin/aarch64-linux-gnu-gcc" --version | head -1
+
+      - name: Restore the compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: rg552-kernel-ccache-${{ github.sha }}
+          restore-keys: rg552-kernel-ccache-
+
+      - name: Build the kernel
+        env:
+          CHIPSET: rk3399
+          UNIT: rg552
+          RG552_KERNEL_ONLY: "1"
+          CCACHE_DIR: /home/runner/.cache/ccache
+          CCACHE_MAXSIZE: 2G
+        run: |
+          set +e
+          # ccache in front of the cross gcc, found first on PATH.
+          mkdir -p "$HOME/ccache-bin"
+          ln -sf /usr/bin/ccache "$HOME/ccache-bin/aarch64-linux-gnu-gcc"
+          source ./utils.sh
+          export PATH="$HOME/ccache-bin:$PATH"
+          source ./build_kernel-rk3399.sh
+          ccache -s | head -20
+          test -s rg552-kernel-out/boot/Image || { echo "::error::no kernel Image was produced"; exit 1; }
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          KVER="$(ls rg552-kernel-out/rootfs/lib/modules)"
+          mkdir out
+          cp rg552-kernel-out/boot/Image rg552-kernel-out/boot/rk3399-rg552-linux.dtb out/
+          cp rg552-kernel-out/boot/config "out/config-${KVER}"
+          tar -C rg552-kernel-out/rootfs -czf out/rg552-kernel-modules.tar.gz lib etc
+          (cd out && sha256sum * > SHA256SUMS)
+          echo "KVER=${KVER}" >> "$GITHUB_ENV"
+          ls -l out
+
+      # RELEASE_TOKEN, as for the "RG552" release: the workflow token cannot
+      # create a tag on an rg552 commit (its workflow files differ from the
+      # default branch's).
+      - name: Check the release token
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+          REPO: ${{ github.repository }}
+        run: |
+          [ "$HAS_RELEASE_TOKEN" = true ] || { echo "::error::RG552 releases need the RELEASE_TOKEN secret"; exit 1; }
+          if ! out="$(gh api "repos/$REPO" --jq .full_name 2>&1)"; then
+            echo "::error::GitHub rejected RELEASE_TOKEN: $out"
+            exit 1
+          fi
+
+      - name: Publish as RG552-kernel
+        working-directory: out
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view RG552-kernel --repo "$REPO" >/dev/null 2>&1; then
+            gh release delete RG552-kernel --repo "$REPO" --cleanup-tag --yes
+          fi
+          if gh api "repos/$REPO/git/ref/tags/RG552-kernel" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/$REPO/git/refs/tags/RG552-kernel"
+          fi
+          cat > ../notes.md <<EOF
+          Test kernel for the Anbernic RG552 (${KVER}), from \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA}.
+          Built $(date -u '+%Y-%m-%d %H:%M') UTC. Replaced by the next test kernel.
+
+          To try it: copy \`Image\` and \`rk3399-rg552-linux.dtb\` over the ones on
+          the BOOT partition of a card running an RG552 image (keep copies of the
+          old ones to go back), then reboot. A change to a loadable module also
+          needs \`rg552-kernel-modules.tar.gz\` extracted over \`/\` on the device.
+          EOF
+          gh release create RG552-kernel Image rk3399-rg552-linux.dtb rg552-kernel-modules.tar.gz "config-${KVER}" SHA256SUMS \
+            --repo "$REPO" \
+            --target "$GITHUB_SHA" \
+            --title "RG552 test kernel (${GITHUB_SHA::7})" \
+            --notes-file ../notes.md \
+            --prerelease \
+            --latest=false

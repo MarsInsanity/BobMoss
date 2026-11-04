@@ -87,9 +87,24 @@ CFLAGS=-Wno-deprecated-declarations make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aar
 verify_action
 cd ..
 
-# Install kernel modules
-sudo make -C $KERNEL_SRC ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- INSTALL_MOD_PATH=../Arkbuild modules_install
-KERNEL_VERSION=$(basename $(find Arkbuild/lib/modules -maxdepth 1 -mindepth 1 -type d | head -n 1))
+# Kernel-only mode (RG552_KERNEL_ONLY=1, .github/workflows/build-rg552-kernel.yaml):
+# the same kernel, modules and RTL8188FU module, collected in rg552-kernel-out/
+# instead of the image, so a kernel or dts change can be tried by copying Image
+# and the dtb onto a card's BOOT partition.
+if [ "$RG552_KERNEL_ONLY" = 1 ]; then
+  MODROOT=$PWD/rg552-kernel-out/rootfs
+  rm -rf rg552-kernel-out
+  mkdir -p rg552-kernel-out/boot $MODROOT
+  cp $KERNEL_SRC/arch/arm64/boot/Image $KERNEL_SRC/arch/arm64/boot/dts/rockchip/${KERNEL_DTB} rg552-kernel-out/boot/
+  cp $KERNEL_SRC/.config rg552-kernel-out/boot/config
+  make -C $KERNEL_SRC ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- INSTALL_MOD_PATH=$MODROOT modules_install
+  verify_action
+else
+  MODROOT=Arkbuild
+  # Install kernel modules
+  sudo make -C $KERNEL_SRC ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- INSTALL_MOD_PATH=../Arkbuild modules_install
+fi
+KERNEL_VERSION=$(basename $(find $MODROOT/lib/modules -maxdepth 1 -mindepth 1 -type d | head -n 1))
 
 # --- internal Wi-Fi: RTL8188FU (USB) ----------------------------------------
 rm -rf rtl8188fu
@@ -105,18 +120,25 @@ make -C rtl8188fu -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
   KSRC=$PWD/$KERNEL_SRC KVER=${KERNEL_VERSION} CONFIG_POWER_SAVING=n \
   KCFLAGS="-Wno-address" modules
 verify_action
-sudo mkdir -p Arkbuild/lib/modules/${KERNEL_VERSION}/extra
-sudo cp rtl8188fu/*.ko Arkbuild/lib/modules/${KERNEL_VERSION}/extra/
+sudo mkdir -p ${MODROOT}/lib/modules/${KERNEL_VERSION}/extra
+sudo cp rtl8188fu/*.ko ${MODROOT}/lib/modules/${KERNEL_VERSION}/extra/
 if ls rtl8188fu/firmware/*.bin &>/dev/null; then
-  sudo mkdir -p Arkbuild/lib/firmware/rtlwifi
-  sudo cp rtl8188fu/firmware/*.bin Arkbuild/lib/firmware/rtlwifi/
+  sudo mkdir -p ${MODROOT}/lib/firmware/rtlwifi
+  sudo cp rtl8188fu/firmware/*.bin ${MODROOT}/lib/firmware/rtlwifi/
 fi
 # The driver's own advice: no USB selective suspend and no power management,
 # both of which drop the link on this chip.
+sudo mkdir -p ${MODROOT}/etc/modprobe.d
 echo "options rtl8188fu rtw_power_mgnt=0 rtw_enusbss=0 rtw_ips_mode=0" | \
-  sudo tee Arkbuild/etc/modprobe.d/rtl8188fu.conf
+  sudo tee ${MODROOT}/etc/modprobe.d/rtl8188fu.conf
 rm -rf rtl8188fu
-sudo touch Arkbuild/lib/modules/${KERNEL_VERSION}/modules.builtin.modinfo
+sudo touch ${MODROOT}/lib/modules/${KERNEL_VERSION}/modules.builtin.modinfo
+if [ "$RG552_KERNEL_ONLY" = 1 ]; then
+  sudo depmod -b $MODROOT ${KERNEL_VERSION}
+  verify_action
+  echo "RG552 kernel ${KERNEL_VERSION} is in rg552-kernel-out/"
+  return 0 2>/dev/null || exit 0
+fi
 sudo cp /usr/bin/qemu-aarch64-static Arkbuild/usr/bin/
 call_chroot "depmod ${KERNEL_VERSION}"
 sudo rm -f Arkbuild/usr/bin/qemu-aarch64-static
