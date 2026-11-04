@@ -166,6 +166,19 @@ fi
 
 # The layer carries the build's enable symlinks; firstboot has already run here.
 systemctl disable firstboot.service >/dev/null 2>&1
+# /etc/fstab is device state the layer never ships, so build-side fixes to it
+# reach fresh flashes only. rk3326 units flashed before the 4.4 fstab fix still
+# have compress=zlib:1, which that kernel's btrfs rejects: systemd-remount-fs
+# failed every boot and root ran without noatime or compression. Same edit as
+# setup_spruce_handoff.sh makes to the image.
+case "$(field kernel)" in
+    4.4.*)
+        if grep -q "compress=zlib:1" /etc/fstab 2>/dev/null; then
+            say "fixing compress=zlib:1 in /etc/fstab"
+            sed -i "s/compress=zlib:1/compress=zlib/" /etc/fstab
+        fi
+        ;;
+esac
 ldconfig
 # ldconfig points each soname link at a file carrying that soname, which is the
 # diverted Mesa copy (libEGL.so.1.1.0.distrib), not libMali.so, so the GL links
