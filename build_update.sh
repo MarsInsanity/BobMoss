@@ -151,8 +151,8 @@ sudo tar -C Arkbuild --numeric-owner --no-recursion -T "$WORK/layer" -czf "$WORK
 # its dpkg records, so an updated device ends up with the same package set as a
 # fresh flash.
 sudo chroot Arkbuild dpkg-query -W -f '${db:Status-Status} ${Package}:${Architecture} ${Version}\n' \
-  | awk '$1 == "installed" {print $2" "$3}' | sort > "$WORK/installed"
-comm -23 "$WORK/installed" dmupd-baseline.txt > "$WORK/new-packages"
+  | awk '$1 == "installed" {print $2" "$3}' | LC_ALL=C sort > "$WORK/installed"
+LC_ALL=C comm -23 "$WORK/installed" <(LC_ALL=C sort dmupd-baseline.txt) > "$WORK/new-packages"
 mkdir -p "$WORK/pkgmeta"
 : > "$WORK/pkgfiles"
 : > "$WORK/pkgkeys"
