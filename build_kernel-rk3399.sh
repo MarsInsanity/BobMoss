@@ -16,6 +16,9 @@
 #                              on SARADC 1) reported on the pad
 #   patches/rg552/kernel/0005  cw2015 gauge registers as "battery", not "bat",
 #                              the name apps read (/sys/class/power_supply/battery)
+#   patches/rg552/kernel/0006  dw-hdmi: its first mode probe forces the port on
+#                              (a handheld hack), which overrode video=HDMI-A-1:d;
+#                              a command-line "off" now stays off
 #
 # The internal Wi-Fi is an RTL8188FU on USB, which this kernel has no driver
 # for, so kelebek333's out-of-tree one is built against it (as AmberELEC does).
@@ -165,6 +168,7 @@ sudo cp $KERNEL_SRC/arch/arm64/boot/dts/rockchip/${KERNEL_DTB} ${mountpoint}/
 # output, and the mini-HDMI port reads as connected with no EDID (1280x720), so
 # fb0 came up 1152x720 and the console, the firstboot dialog and the boot logo
 # filled only part of the 1152x1920 panel. HDMI is not supported on this port.
+# Patch 0006 is what makes the driver honour it (v0.2.9 had the option alone).
 sudo mkdir -p ${mountpoint}/extlinux
 cat <<EOF | sudo tee ${mountpoint}/extlinux/extlinux.conf
 # dArkMoss for the Anbernic RG552. Rewritten by updates.
