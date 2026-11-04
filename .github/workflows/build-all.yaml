@@ -131,14 +131,22 @@ jobs:
             grep -qx "Version: ${VERSION}" notes.md || { echo "::error::$TAG is not ${VERSION}"; exit 1; }
             gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p SHA256SUMS -O old.sums
             for u in $(jq -r '.[]' <<<"$UNITS"); do
-              prefix="dArkMoss_${u^^}_"
+              compgen -G "dArkMoss_${u^^}_*.img.7z*" >/dev/null \
+                || { echo "::warning::$u produced no image: keeping its old assets"; continue; }
+              # build_update.sh names the .dmupd after the unit's SPRUCE_PLATFORM, which differs only here
+              D="${u^^}"; [ "$u" = xumini ] && D=XUMINIM
+              prefix="dArkMoss_(${u^^}|${D})_"
               gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' \
-                | grep "^${prefix}" | while read -r a; do
+                | grep -E "^${prefix}" | while read -r a; do
                   gh release delete-asset "$TAG" "$a" --repo "$GITHUB_REPOSITORY" --yes
                 done
-              grep -v "  ${prefix}" old.sums > old.tmp || true
+              grep -vE "  ${prefix}" old.sums > old.tmp || true
               mv old.tmp old.sums
             done
+            if [ -f spruce-V10-overlay.zip ]; then
+              grep -v "  spruce-V10-overlay\.zip$" old.sums > old.tmp || true
+              mv old.tmp old.sums
+            fi
             cat old.sums SHA256SUMS | sort -k2 > merged.sums
             mv merged.sums SHA256SUMS
             extra=(); [ -f spruce-V10-overlay.zip ] && extra=(spruce-V10-overlay.zip)
