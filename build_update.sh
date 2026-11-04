@@ -215,6 +215,12 @@ sudo umount ${mountpoint}
 RESOURCE_FILE=""
 if [ "$CHIPSET" != "rk3326" ]; then
   sudo dd if=${LOOP_DEV}p2 bs=1M 2>/dev/null | gzip -c > "$WORK/resource.img.gz"
+  # resource_tool writes the "RSCE" magic first and U-Boot rejects a resource
+  # without it: never ship a blank or foreign one over a device's good one.
+  if [ "$(gzip -dc "$WORK/resource.img.gz" 2>/dev/null | head -c 4 | tr -d '\000')" != "RSCE" ]; then
+    echo "ERROR: the resource partition is not a Rockchip resource image - not packing an update that would not boot."
+    exit 1
+  fi
   RESOURCE_FILE=resource.img.gz
 fi
 

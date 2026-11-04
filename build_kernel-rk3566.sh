@@ -283,6 +283,7 @@ else
       bc_publish "$RESOURCE_CACHE_ASSET" resource.img
     else
       echo "ERROR: resource.img was not produced - the image will not boot."
+      exit 1
     fi
     # The tree is only ever needed for that one file.
     rm -rf rg503Kernel
@@ -306,6 +307,15 @@ cp ../resource.img rk3566_tool/Image/
 # here: https://github.com/christianhaitian/rkbin/commit/1302e7af2b34f18496997f52e3cf5a358829db73
 cp ../rkbin/bin/rk35/Anbernic_Stock_loader1.img .
 #sudo cp uboot.img ../../Arkbuild/usr/local/bin/uboot.img.jelos
+
+# A failed clone or U-Boot build leaves these missing, and the dd's below would
+# leave their sectors blank. Not trust.img: this U-Boot is FIT, uboot.img has ATF.
+for f in Anbernic_Stock_loader1.img uboot.img rk3566_tool/Image/resource.img; do
+  if [ ! -s "$f" ]; then
+    echo "ERROR: $f was not produced - the image will not boot."
+    exit 1
+  fi
+done
 
 echo "Flashing loader1.img, trust.img, uboot.img and resource.img..."
 sudo dd if=Anbernic_Stock_loader1.img of=$LOOP_DEV bs=$SECTOR_SIZE seek=64 conv=notrunc
