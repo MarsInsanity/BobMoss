@@ -14,28 +14,34 @@ install_lib() {
 
     # --- ARM64 ---
     local deb_arm64=$(basename "$url")
-    wget -t 3 -T 60 --no-check-certificate "$url"
+    rm -f "$deb_arm64"
+    wget -t 3 -T 60 --retry-on-http-error=429,500,502,503,504 --no-check-certificate "$url"
     #verify_action
     dpkg --fsys-tarfile "$deb_arm64" | tar -xO --wildcards "*$wildcard*" > "$lib_name"
-    if [ ! -s "$lib_name" ]; then
-        echo "[Error] Extraction failed for $lib_name"
+    if [ -s "$lib_name" ]; then
+        sudo mv -f "$lib_name" Arkbuild/usr/lib/aarch64-linux-gnu/
+        call_chroot "chown root:root /usr/lib/aarch64-linux-gnu/$lib_name"
+    else
+        echo "[Error] Extraction failed for $lib_name, not installed"
+        rm -f "$lib_name"
     fi
-    sudo mv -f "$lib_name" Arkbuild/usr/lib/aarch64-linux-gnu/
-    call_chroot "chown root:root /usr/lib/aarch64-linux-gnu/$lib_name"
     rm -f "$deb_arm64"
 
     # --- ARMHF ---
     if [[ "${BUILD_ARMHF}" == "y" ]]; then
         local url_armhf="${4:-${url//_arm64/_armhf}}"
         local deb_armhf=$(basename "$url_armhf")
-        wget -t 3 -T 60 --no-check-certificate "$url_armhf"
+        rm -f "$deb_armhf"
+        wget -t 3 -T 60 --retry-on-http-error=429,500,502,503,504 --no-check-certificate "$url_armhf"
         #verify_action
         dpkg --fsys-tarfile "$deb_armhf" | tar -xO --wildcards "*$wildcard*" > "$lib_name"
-        if [ ! -s "$lib_name" ]; then
-            echo "[Error] Extraction failed for $lib_name (armhf)"
+        if [ -s "$lib_name" ]; then
+            sudo mv -f "$lib_name" Arkbuild/usr/lib/arm-linux-gnueabihf/
+            call_chroot "chown root:root /usr/lib/arm-linux-gnueabihf/$lib_name"
+        else
+            echo "[Error] Extraction failed for $lib_name (armhf), not installed"
+            rm -f "$lib_name"
         fi
-        sudo mv -f "$lib_name" Arkbuild/usr/lib/arm-linux-gnueabihf/
-        call_chroot "chown root:root /usr/lib/arm-linux-gnueabihf/$lib_name"
         rm -f "$deb_armhf"
     fi
 }
