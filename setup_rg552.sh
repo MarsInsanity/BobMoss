@@ -56,8 +56,9 @@ if [ ! -e Arkbuild/sbin/mount.exfat ] && [ ! -e Arkbuild/usr/sbin/mount.exfat ];
   sudo ln -sf mount.exfat-fuse Arkbuild/usr/sbin/mount.exfat
 fi
 
-# Both RK3399 DWC3 ports are host-only in the RG552 dts, so there is no USB
-# device controller: skip adbd at once instead of its 10 s wait for one.
+# adbd only where there is a USB device controller: the Type-C port's DWC3 is
+# dual-role (otg) in the RG552 dts, so there is one; without it (a kernel with
+# the port host-only) adbd is skipped at once instead of its 10 s wait.
 sudo mkdir -p Arkbuild/etc/systemd/system/adbd.service.d
-printf '[Unit]\n# RG552: no USB device controller (both DWC3 ports are host-only).\nConditionDirectoryNotEmpty=/sys/class/udc\n' \
+printf '[Unit]\n# RG552: only when a USB device controller exists (the Type-C port in otg mode).\nConditionDirectoryNotEmpty=/sys/class/udc\n' \
   | sudo tee Arkbuild/etc/systemd/system/adbd.service.d/rg552-no-udc.conf >/dev/null

@@ -1,5 +1,5 @@
 diff --git a/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts b/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
-index 05a02ae..509b1be 100755
+index 05a02ae..eb2dd2a 100755
 --- a/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
 @@ -16,7 +16,7 @@
@@ -200,7 +200,28 @@ index 05a02ae..509b1be 100755
  
  &tcphy0 {
  	extcon = <&fusb0>;
-@@ -1734,6 +1771,12 @@ gt9xx: gt9xx@14 {
+@@ -1511,13 +1548,18 @@ gt9xx: gt9xx@14 {
+ 	status = "okay";
+ };
+ 
++/*
++ * dArkMoss: the Type-C port on the FUSB302 is dual-role again (it was forced
++ * to host): a USB host when a device or OTG adapter is attached, a USB device
++ * (adbd, mass storage) on a PC. The internal Wi-Fi is on usbdrd3_1.
++ */
+ &usbdrd3_0 {
+-	//extcon = <&fusb0>;
++	extcon = <&fusb0>;
+ 	status = "okay";
+ };
+ 
+ &usbdrd_dwc3_0 {
+-	dr_mode = "host";
++	dr_mode = "otg";
+ 	status = "okay";
+ };
+ 
+@@ -1734,6 +1776,12 @@ gt9xx: gt9xx@14 {
  							<3 RK_PD5 RK_FUNC_GPIO &pcfg_pull_up>;
  			};
  	};
@@ -213,8 +234,3 @@ index 05a02ae..509b1be 100755
  	lcd_en {
  		lcd_en_gpio: lcd-en-gpio {
  			rockchip,pins =
-@@ -1742,3 +1785,4 @@ gt9xx: gt9xx@14 {
- 		};
- 	};
- };
-+
