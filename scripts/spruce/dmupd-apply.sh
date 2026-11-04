@@ -127,8 +127,12 @@ say "installing the rootfs layer"
 # libraries in use keep running on the old inode. --keep-directory-symlink
 # protects the merged-/usr symlinks should a legacy /lib path ever appear in the
 # layer; --no-overwrite-dir leaves existing directories' ownership and mode
-# alone (it cannot be combined with --unlink-first).
-tar -xOf "$PAYLOAD" rootfs.tar.gz | tar -xzpf - -C / --numeric-owner --keep-directory-symlink --no-overwrite-dir \
+# alone (it cannot be combined with --unlink-first). -P makes tar create each
+# symlink as it reaches it: without it, a link to an absolute or ../ target is
+# left as an empty mode-000 file until the very end, so an apply cut short here
+# leaves default.target and every enable link as empty (masked) unit files and
+# the device boots to rescue.target. The members are relative and checksummed.
+tar -xOf "$PAYLOAD" rootfs.tar.gz | tar -xzpPf - -C / --numeric-owner --keep-directory-symlink --no-overwrite-dir \
     || fail "rootfs layer did not extract cleanly"
 sync
 
@@ -146,7 +150,7 @@ if [ "$HAVE_PACKAGES" = 1 ]; then
         gname="$(awk -F: -v g="$ugid" '$3 == g {print $1; exit}' "$WORK/pkgmeta/group")"
         useradd -r -M -d "$home" -s "$shell" -c "$gecos" ${gname:+-g "$gname"} "$uname"
     done < "$WORK/pkgmeta/passwd"
-    tar -xOf "$PAYLOAD" packages.tar.gz | tar -xzpf - -C / --numeric-owner --keep-directory-symlink --no-overwrite-dir --exclude=pkgmeta \
+    tar -xOf "$PAYLOAD" packages.tar.gz | tar -xzpPf - -C / --numeric-owner --keep-directory-symlink --no-overwrite-dir --exclude=pkgmeta \
         || fail "packages did not extract cleanly"
     STATUS=/var/lib/dpkg/status
     cp -p "$STATUS" "$STATUS-old"
