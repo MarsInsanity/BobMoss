@@ -62,3 +62,19 @@ fi
 sudo mkdir -p Arkbuild/etc/systemd/system/adbd.service.d
 printf '[Unit]\n# RG552: only when a USB device controller exists (the Type-C port in otg mode).\nConditionDirectoryNotEmpty=/sys/class/udc\n' \
   | sudo tee Arkbuild/etc/systemd/system/adbd.service.d/rg552-no-udc.conf >/dev/null
+
+# Console font: Debian's default 8x16 is about 1 mm tall on the 5.36" 1920x1152
+# panel, so tty1 (mount-spruce's messages, /boot/darkmoss-debug's boot text)
+# uses Terminus Bold 16x32 instead: 120x36 characters. The cached copy
+# console-setup.service loads at boot is rebuilt here; failing that, it rebuilds
+# it itself on the first boot, this file being newer than the cache.
+CONSOLE_SETUP=Arkbuild/etc/default/console-setup
+if [ -f "$CONSOLE_SETUP" ]; then
+  sudo sed -i -e 's/^FONTFACE=.*/FONTFACE="TerminusBold"/' -e 's/^FONTSIZE=.*/FONTSIZE="16x32"/' "$CONSOLE_SETUP"
+else
+  printf 'ACTIVE_CONSOLES="/dev/tty[1-6]"\nCHARMAP="UTF-8"\nCODESET="guess"\nFONTFACE="TerminusBold"\nFONTSIZE="16x32"\nVIDEOMODE=\n' \
+    | sudo tee "$CONSOLE_SETUP" >/dev/null
+fi
+grep -q '^FONTFACE="TerminusBold"' "$CONSOLE_SETUP" && grep -q '^FONTSIZE="16x32"' "$CONSOLE_SETUP"
+verify_action
+sudo chroot Arkbuild/ bash -c "setupcon --save-only" || echo "setupcon --save-only failed; the font cache is rebuilt on the first boot"

@@ -159,6 +159,10 @@ sudo cp $KERNEL_SRC/arch/arm64/boot/dts/rockchip/${KERNEL_DTB} ${mountpoint}/
 # U-Boot's distro boot reads this. No initramfs: btrfs and the SD host are
 # built in. The root is found by PARTUUID (image_setup-rk3399.sh fixes the disk
 # id), so it does not matter which slot the kernel enumerates first.
+# video=HDMI-A-1:d: the console framebuffer is sized to fit every connected
+# output, and the mini-HDMI port reads as connected with no EDID (1280x720), so
+# fb0 came up 1152x720 and the console, the firstboot dialog and the boot logo
+# filled only part of the 1152x1920 panel. HDMI is not supported on this port.
 sudo mkdir -p ${mountpoint}/extlinux
 cat <<EOF | sudo tee ${mountpoint}/extlinux/extlinux.conf
 # dArkMoss for the Anbernic RG552. Rewritten by updates.
@@ -168,7 +172,7 @@ DEFAULT dArkMoss
 LABEL dArkMoss
   LINUX /Image
   FDT /${KERNEL_DTB}
-  APPEND root=PARTUUID=52473552-02 rootfstype=btrfs rootwait rw fsck.repair=yes net.ifnames=0 fbcon=rotate:${SCREEN_ROTATION} console=ttyFIQ0 quiet splash consoleblank=0 vt.global_cursor_default=0 loglevel=3 panic=10 \${dm_debug}
+  APPEND root=PARTUUID=52473552-02 rootfstype=btrfs rootwait rw fsck.repair=yes net.ifnames=0 fbcon=rotate:${SCREEN_ROTATION} video=HDMI-A-1:d console=ttyFIQ0 quiet splash consoleblank=0 vt.global_cursor_default=0 loglevel=3 panic=10 \${dm_debug}
 EOF
 
 rm -rf $KERNEL_SRC

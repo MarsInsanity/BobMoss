@@ -8,9 +8,11 @@
 # its EASYROMS partition; spruce is the frontend, so none of that is here.
 sudo chmod 666 /dev/tty1
 export TERM=linux
-sudo setfont /usr/share/consolefonts/Lat7-Terminus20x10.psf.gz
-height="20"
-width="60"
+# The 1920x1152 panel: 16x32 Terminus Bold (120x36 characters), and a dialog
+# that fills most of it, as the 20x10 font and 60x20 dialog do on 640x480.
+sudo setfont /usr/share/consolefonts/Lat7-TerminusBold32x16.psf.gz
+height="26"
+width="96"
 
 # RG552: two SD slots and detection-order mmcblk numbering, so the disk is
 # whichever one holds the root, not a fixed mmcblk0.

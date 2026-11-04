@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # The dArkMoss boot logo, laid out like oakMOSS's (scripts/make-boot-resource.py logo()): spruce's tree
 # (spruce/imgs/tree_sm_close_crop.png) over the name on the SPRUCE theme's background, as a full-panel 24-bit BMP for U-Boot and bootlogo.py.
-#   make-logo.py <width> <height> <out.bmp> [--rotate-cw|--rotate-ccw] [--status TEXT]
+#   make-logo.py <width> <height> <out.bmp> [--rotate-cw|--rotate-ccw] [--status TEXT] [--scale K]
 #     --rotate-cw/--rotate-ccw: draw landscape, turn 90 degrees clockwise / counterclockwise (for a
 #     portrait panel booted with fbcon=rotate:1 / rotate:3); --status: add oakMOSS's grey status line.
-#     Panels shorter than 480 px get the layout scaled down to fit.
+#     Panels shorter than 480 px get the layout scaled down to fit; --scale K sets the layout scale
+#     instead (the RG552's 1920x1152 panel: --scale 2.4, the 480-line layout grown to its 1152 lines).
 import os
 import sys
 
@@ -16,8 +17,8 @@ FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 BG = (0x28, 0x28, 0x28, 255)  # spruce Themes/SPRUCE bgColor #282828
 
 
-def logo(w, h, label="dArkMoss", status=None):
-    k = min(1.0, min(w, h) / 480)  # 1 on the 640x480 / 720x720 panels the layout was made for
+def logo(w, h, label="dArkMoss", status=None, scale=None):
+    k = scale or min(1.0, min(w, h) / 480)  # 1 on the 640x480 / 720x720 panels the layout was made for
     im = Image.new("RGBA", (w, h), BG)
     tree = Image.open(TREE).convert("RGBA")
     tree = tree.resize((round(tree.width * 2 * k), round(tree.height * 2 * k)), Image.LANCZOS)
@@ -40,18 +41,22 @@ def logo(w, h, label="dArkMoss", status=None):
 
 
 if __name__ == "__main__":
-    argv, status = sys.argv[1:], None
+    argv, status, scale = sys.argv[1:], None, None
     if "--status" in argv:
         i = argv.index("--status")
         status = argv[i + 1]
         del argv[i:i + 2]
+    if "--scale" in argv:
+        i = argv.index("--scale")
+        scale = float(argv[i + 1])
+        del argv[i:i + 2]
     args = [a for a in argv if a not in ("--rotate-cw", "--rotate-ccw")]
     if len(args) != 3:
-        sys.exit("usage: make-logo.py <width> <height> <out.bmp> [--rotate-cw|--rotate-ccw] [--status TEXT]")
+        sys.exit("usage: make-logo.py <width> <height> <out.bmp> [--rotate-cw|--rotate-ccw] [--status TEXT] [--scale K]")
     w, h, out = int(args[0]), int(args[1]), args[2]
     if "--rotate-cw" in argv:
-        logo(h, w, status=status).transpose(Image.Transpose.ROTATE_270).save(out, "BMP")
+        logo(h, w, status=status, scale=scale).transpose(Image.Transpose.ROTATE_270).save(out, "BMP")
     elif "--rotate-ccw" in argv:
-        logo(h, w, status=status).transpose(Image.Transpose.ROTATE_90).save(out, "BMP")
+        logo(h, w, status=status, scale=scale).transpose(Image.Transpose.ROTATE_90).save(out, "BMP")
     else:
-        logo(w, h, status=status).save(out, "BMP")
+        logo(w, h, status=status, scale=scale).save(out, "BMP")

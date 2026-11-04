@@ -78,11 +78,15 @@ elif [ "$UNIT" == "g350" ]; then
 elif [ "$UNIT" == "v10" ]; then
   # 320x480 portrait panel booted with fbcon=rotate:3: logos/make-logo.py 320 480 --rotate-ccw.
   sudo cp logos/v10/logo.bmp ${mountpoint}/logo.bmp
+elif [ "$UNIT" == "rg552" ]; then
+  # 1152x1920 portrait panel booted with fbcon=rotate:3: logos/make-logo.py 1152 1920 --rotate-ccw --scale 2.4.
+  # No U-Boot splash here (mainline U-Boot has no driver for its DSI panel); bootlogo.service draws it.
+  sudo cp logos/rg552/logo.bmp ${mountpoint}/logo.bmp
 else
   sudo cp logos/unrotated/dArkMoss.bmp ${mountpoint}/logo.bmp
 fi
 # bootlogo.service's first-boot redraw: that logo plus "Setting up the card" (make-logo.py --status).
-if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ]; then
+if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ] || [ "$UNIT" == "rg552" ]; then
   sudo cp logos/${UNIT}/logo-firstboot.bmp ${mountpoint}/
 fi
 
@@ -473,9 +477,9 @@ sudo cp scripts/boot_text.sh Arkbuild/usr/local/bin/
 sudo chmod 777 Arkbuild/usr/local/bin/boot_text.sh
 sudo cp scripts/welcome-message.service Arkbuild/etc/systemd/system/welcome-message.service
 sudo chroot Arkbuild/ bash -c "systemctl enable welcome-message"
-# G350, Mini M, V10: the logo stays up instead of the welcome text, which would clear it. bootlogo.service
+# G350, Mini M, V10, RG552: the logo stays up instead of the welcome text, which would clear it. bootlogo.service
 # redraws it once the console blanks U-Boot's (upstream's image-viewer logo.service is not built).
-if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ]; then
+if [ "$UNIT" == "g350" ] || [ "$UNIT" == "xumini" ] || [ "$UNIT" == "v10" ] || [ "$UNIT" == "rg552" ]; then
   sudo chroot Arkbuild/ bash -c "systemctl disable welcome-message"
   sudo cp scripts/bootlogo/bootlogo.py Arkbuild/usr/local/sbin/
   sudo chmod 0755 Arkbuild/usr/local/sbin/bootlogo.py
