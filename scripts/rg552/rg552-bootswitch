@@ -49,15 +49,47 @@ else
 fi
 WORK="$TMPBASE/rg552-bootswitch.$$"
 mkdir -p "$WORK" || die "cannot create $WORK"
-trap 'rm -rf "$WORK"' EXIT INT TERM
+# SELinux mode to put back if a write needed it permissive (Android only).
+SELINUX_RESTORE=""
+cleanup() {
+    [ -n "$SELINUX_RESTORE" ] && setenforce "$SELINUX_RESTORE" 2>/dev/null
+    rm -rf "$WORK"
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM
 dd if=/dev/zero of="$WORK/zero" bs=512 count=1 2>/dev/null
 
 read_sector() {   # DEVICE SECTOR OUTFILE
     dd if="$1" of="$3" bs=512 skip="$2" count=1 2>/dev/null && [ "$(wc -c < "$3")" -eq 512 ]
 }
 
+# Raw writes. On Android the first try can be refused: some toybox dd
+# builds reject conv=notrunc (pointless on a block device, which is never
+# truncated), and an enforcing SELinux policy can deny su writes to block
+# devices. dd's own message is kept in $WORK/dd.err for the error report.
 write_sector() {  # DEVICE SECTOR INFILE
-    dd if="$3" of="$1" bs=512 seek="$2" count=1 conv=notrunc 2>/dev/null
+    dd if="$3" of="$1" bs=512 seek="$2" count=1 conv=notrunc 2>"$WORK/dd.err" && return 0
+    [ -b "$1" ] || return 1
+    dd if="$3" of="$1" bs=512 seek="$2" count=1 2>>"$WORK/dd.err" && return 0
+    if [ -z "$SELINUX_RESTORE" ] && command -v getenforce >/dev/null 2>&1 \
+            && [ "$(getenforce 2>/dev/null)" = Enforcing ]; then
+        say "write refused; retrying with SELinux permissive for the restore"
+        setenforce 0 2>>"$WORK/dd.err" && SELINUX_RESTORE=1 \
+            && dd if="$3" of="$1" bs=512 seek="$2" count=1 2>>"$WORK/dd.err" && return 0
+    fi
+    return 1
+}
+
+dd_error() {
+    tr '\n' ' ' < "$WORK/dd.err" 2>/dev/null | cut -c1-300
+}
+
+# The kernel can hold a removable card read-only (Android does for some).
+make_writable() {  # DEVICE
+    command -v blockdev >/dev/null 2>&1 || return 0
+    [ "$(blockdev --getro "$1" 2>/dev/null)" = 1 ] || return 0
+    say "$1 is read-only; making it writable"
+    blockdev --setrw "$1" 2>/dev/null || say "could not clear read-only on $1"
 }
 
 has_marker() {    # DEVICE
@@ -173,7 +205,7 @@ to_android() {
     fi
 
     for s in $STAGES; do
-        write_sector "$DEV" "$s" "$WORK/zero" || die "blanking sector $s failed; run '$0 linux $DEV' to restore"
+        write_sector "$DEV" "$s" "$WORK/zero" || die "blanking sector $s failed ($(dd_error)); run '$0 linux $DEV' to restore"
     done
     flush "$DEV"
     [ "$(stage_state "$DEV")" = blank ] || die "the loader did not blank cleanly; run '$0 linux $DEV' to restore"
@@ -195,9 +227,10 @@ to_linux() {
         cmp -s "$WORK/s$i" "$WORK/zero" && die "the saved copy of sector $s is empty; refusing"
         i=$((i + 1))
     done
+    make_writable "$DEV"
     i=0
     for s in $STAGES; do
-        write_sector "$DEV" "$s" "$WORK/s$i" || die "restoring sector $s failed"
+        write_sector "$DEV" "$s" "$WORK/s$i" || die "restoring sector $s of $DEV failed: $(dd_error)"
         i=$((i + 1))
     done
     flush "$DEV"
