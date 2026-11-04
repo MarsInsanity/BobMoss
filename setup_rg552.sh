@@ -29,9 +29,9 @@ from its internal storage when it does not.
                         the boot loader into an unused area of this card,
                         blanks it, and reboots into Android.
 
-  Android -> dArkMoss:  the "RG552 Boot Switch" Android app ("Boot dArkMoss"),
-                        which needs root. It copies the saved loader back and
-                        reboots into dArkMoss.
+  Android -> dArkMoss:  the "SpruceOS" Android app (RG552BootSwitch.apk; press
+                        A), which needs root. It copies the saved loader back
+                        and reboots into dArkMoss and spruce.
 
 Without the Android app, from a Linux or macOS PC with this card in a reader
 (replace /dev/sdX with the card itself, e.g. from lsblk / diskutil list):

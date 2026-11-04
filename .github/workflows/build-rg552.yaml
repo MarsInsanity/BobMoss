@@ -155,8 +155,10 @@ jobs:
           - \`dArkMoss_RG552_*.img.7z.001\` + \`.002\`: the TF1 card image (a plain byte
             split: \`cat\` them, or let 7-Zip open \`.001\`). spruce goes on TF2.
           - \`dArkMoss_RG552_*.dmupd\`: in-place update payload.
-          - \`RG552BootSwitch.apk\`: Android app (needs root) to boot back into
-            dArkMoss after spruce's "Boot to Android".
+          - \`RG552BootSwitch.apk\`: the "SpruceOS" Android app (needs root): press
+            A to boot back into spruce after spruce's "Boot to Android". Each
+            build is signed with a new key: uninstall the previous copy (or the
+            older "RG552 Boot Switch") before installing it.
 
           The tag \`RG552\` always holds the newest RG552 build; older builds are
           kept as \`rg552-<date built>\`.

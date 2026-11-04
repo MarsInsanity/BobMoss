@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- {A} is drawn as spruce's A button. -->
+<resources>
+    <string name="app_name">SpruceOS</string>
+    <string name="checking">...Checking if SpruceOS can be booted into</string>
+    <string name="ready">Press the {A} button to boot into SpruceOS</string>
+    <string name="not_bootable">dArkMoss is not bootable, please insert a dArkMoss TF card into the TF1 slot and press the {A} button to scan again</string>
+    <string name="booting">Booting into SpruceOS...</string>
+    <string name="no_root">SpruceOS needs root access to switch the TF1 card. Allow root for this app, then press the {A} button to try again</string>
+    <string name="failed">The TF1 card could not be switched to SpruceOS. Press the {A} button to try again</string>
+</resources>

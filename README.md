@@ -136,5 +136,6 @@ and the RGA-rotated SDL2 from `rk3326_core_builds` (`CORE_BUILDS_CHIPSET` in
   each U-Boot and trust copy) into the unused sectors from 40 of TF1 and blanks
   them, so the next boot falls through to Android; `rg552-bootswitch linux`
   copies them back. The Android side is the
-  "RG552 Boot Switch" app in `android/rg552-bootswitch/` (needs root), and the
-  same script is on the card's FAT partition for recovery from a PC.
+  "SpruceOS" app in `android/rg552-bootswitch/` (`RG552BootSwitch.apk`, needs
+  root; press A to boot into spruce), and the same script is on the card's FAT
+  partition for recovery from a PC.

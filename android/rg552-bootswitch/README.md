@@ -1,7 +1,8 @@
-# RG552 Boot Switch (Android)
+# SpruceOS (Android app for the RG552)
 
 The Android half of switching the Anbernic RG552 between Android (eMMC) and
-dArkMoss/spruce (TF1 card).
+dArkMoss/spruce (TF1 card). It used to be called "RG552 Boot Switch"; the
+package name is unchanged, so it replaces that app.
 
 - **dArkMoss → Android**: spruce's *Boot to Android* app runs
   `rg552-bootswitch android`. It saves the first sector of each boot loader
@@ -11,17 +12,46 @@ dArkMoss/spruce (TF1 card).
   (`scripts/rg552/rg552-bootswitch`, bundled as an asset) with `linux`, which
   copies the saved sectors back, then reboots.
 
-The app needs **root** (Magisk, or the firmware's su) because it writes raw
+## Using it
+
+One screen, made for the controller and laid out like spruce's own (spruce's
+tree, font and theme colours):
+
+- *...Checking if SpruceOS can be booted into*: it reads the TF1 card.
+- *Press the A button to boot into SpruceOS*: A puts the loader back and
+  reboots into dArkMoss and spruce.
+- *dArkMoss is not bootable, ...*: no dArkMoss card with a saved loader in TF1.
+  Insert one and press A to scan again (coming back to the app scans too).
+
+B or Back leaves. A tap anywhere does what A does. If the RG552's A button
+does nothing, `adb logcat -s SpruceOS` shows each key's code and scan code.
+
+The app needs **root** (the firmware's su, or Magisk) because it writes raw
 sectors of the SD card. Without root, the same can be done with
 `adb root` + `adb shell sh rg552-bootswitch.sh linux`, or from a Linux/macOS PC
 with the card in a reader: see `rg552-bootswitch/README.txt` on the card's
 BOOT partition.
 
+## Icon
+
+spruce's tree (spruceOS `spruce/imgs/tree_sm_close_crop.png`), traced to
+straight edges by `tools/make-icons.py`, which writes:
+
+- `res/mipmap-*/ic_launcher.png`: the round icon Android 7.1 (the RG552's own
+  Android) and older use;
+- `res/drawable/ic_launcher_foreground.xml`: the adaptive icon's foreground
+  (Android 8+) and its monochrome layer, which Android 13+ tints to the
+  wallpaper's colours when themed icons are on. The tree is 48 dp tall on the
+  108 dp canvas, inside the 66 dp circle every launcher mask keeps.
+
+The font is spruce's theme font (`Themes/SPRUCE/nunwen.ttf`, merged Nunito,
+SIL Open Font License: `assets/fonts/OFL.txt`), cut down to Latin characters.
+
 ## Building
 
 GitHub Actions builds it (`build-rg552-android` workflow; the APK is an
 artifact, and can be attached to a release by tag). Locally, with an Android
-SDK and a JDK:
+SDK (a platform of API 33 or later) and a JDK:
 
     ANDROID_HOME=~/Android/Sdk android/rg552-bootswitch/build.sh
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- spruce's own theme colours (spruceOS Themes/SPRUCE): background, text, highlight. -->
+<resources>
+    <color name="spruce_bg">#FF282828</color>
+    <color name="spruce_text">#FFEBDBB2</color>
+    <color name="spruce_highlight">#FFFBF1C7</color>
+</resources>

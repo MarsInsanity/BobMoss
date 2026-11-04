@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ launch splash: the adaptive icon on the same grey as the app. -->
+    <style name="Theme.SpruceOS" parent="Theme.SpruceOS.Base">
+        <item name="android:windowSplashScreenBackground">@color/spruce_bg</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/spruce_bg</item>
+    </style>
+</resources>
