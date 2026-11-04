@@ -10,6 +10,10 @@
 #                              fan handed to userspace, USB Wi-Fi rails on,
 #                              SDIO Wi-Fi/BT platdata off, stable mmc aliases
 #   patches/rg552/kernel/0002  goodix: touchscreen-inverted-x/-y
+#   patches/rg552/kernel/0003  goodix: reset-gpios/irq-gpios (mainline 4.5's
+#                              reset at probe), DT size on an empty config
+#   patches/rg552/kernel/0004  singleadc joypad: optional ADC key (the F key
+#                              on SARADC 1) reported on the pad
 #
 # The internal Wi-Fi is an RTL8188FU on USB, which this kernel has no driver
 # for, so kelebek333's out-of-tree one is built against it (as AmberELEC does).

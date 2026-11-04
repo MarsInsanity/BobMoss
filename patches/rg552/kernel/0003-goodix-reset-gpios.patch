@@ -1,0 +1,127 @@
+diff --git a/drivers/input/touchscreen/goodix.c b/drivers/input/touchscreen/goodix.c
+index a386b2b8a..835cf3c8a 100644
+--- a/drivers/input/touchscreen/goodix.c
++++ b/drivers/input/touchscreen/goodix.c
+@@ -27,6 +27,7 @@
+ #include <linux/acpi.h>
+ #include <linux/of.h>
+ #include <linux/property.h>
++#include <linux/gpio/consumer.h>
+ #include <asm/unaligned.h>
+ 
+ struct goodix_ts_data {
+@@ -39,6 +40,8 @@ struct goodix_ts_data {
+ 	bool rotated_screen;
+ 	bool inverted_x;
+ 	bool inverted_y;
++	struct gpio_desc *gpiod_int;
++	struct gpio_desc *gpiod_rst;
+ };
+ 
+ #define GOODIX_MAX_HEIGHT		4096
+@@ -266,11 +269,21 @@ static void goodix_read_config(struct goodix_ts_data *ts)
+ 	ts->int_trigger_type = config[TRIGGER_LOC] & 0x03;
+ 	ts->max_touch_num = config[MAX_CONTACTS_LOC] & 0x0f;
+ 	if (!ts->abs_x_max || !ts->abs_y_max || !ts->max_touch_num) {
++		u32 size;
++
+ 		dev_err(&ts->client->dev,
+ 			"Invalid config, using defaults\n");
+ 		ts->abs_x_max = GOODIX_MAX_WIDTH;
+ 		ts->abs_y_max = GOODIX_MAX_HEIGHT;
++		ts->int_trigger_type = GOODIX_INT_TRIGGER;
+ 		ts->max_touch_num = GOODIX_MAX_CONTACTS;
++		/* The panel's own size where the device tree gives it. */
++		if (!device_property_read_u32(&ts->client->dev,
++					      "touchscreen-size-x", &size) && size)
++			ts->abs_x_max = size;
++		if (!device_property_read_u32(&ts->client->dev,
++					      "touchscreen-size-y", &size) && size)
++			ts->abs_y_max = size;
+ 	}
+ 
+ 	ts->rotated_screen = dmi_check_system(rotated_screen);
+@@ -386,6 +399,64 @@ static int goodix_request_input_dev(struct goodix_ts_data *ts, u16 version,
+ 	return 0;
+ }
+ 
++/*
++ * Reset the controller the way mainline does since 4.5 (ec6e1b4082d9): the
++ * level of INT while RST is released picks the I2C address, then INT is
++ * pulsed low before it goes back to being the interrupt input. Without it a
++ * GT9xx can come up without its configuration (resolution 0, no reports).
++ * RST stays driven high afterwards: nothing else holds it up on the RG552.
++ */
++static int goodix_int_sync(struct goodix_ts_data *ts)
++{
++	int error;
++
++	error = gpiod_direction_output(ts->gpiod_int, 0);
++	if (error)
++		return error;
++	msleep(50);				/* T5: 50ms */
++	return gpiod_direction_input(ts->gpiod_int);
++}
++
++static int goodix_reset(struct goodix_ts_data *ts)
++{
++	int error;
++
++	/* begin select I2C slave addr */
++	error = gpiod_direction_output(ts->gpiod_rst, 0);
++	if (error)
++		return error;
++	msleep(20);				/* T2: > 10ms */
++	/* HIGH: 0x28/0x29 (0x14), LOW: 0xBA/0xBB (0x5d) */
++	error = gpiod_direction_output(ts->gpiod_int, ts->client->addr == 0x14);
++	if (error)
++		return error;
++	usleep_range(100, 2000);		/* T3: > 100us */
++	error = gpiod_direction_output(ts->gpiod_rst, 1);
++	if (error)
++		return error;
++	usleep_range(6000, 10000);		/* T4: > 5ms */
++	/* end select I2C slave addr */
++	return goodix_int_sync(ts);
++}
++
++static int goodix_get_gpio_config(struct goodix_ts_data *ts)
++{
++	struct device *dev = &ts->client->dev;
++	struct gpio_desc *gpiod;
++
++	gpiod = devm_gpiod_get_optional(dev, "irq", GPIOD_IN);
++	if (IS_ERR(gpiod))
++		return PTR_ERR(gpiod);
++	ts->gpiod_int = gpiod;
++
++	gpiod = devm_gpiod_get_optional(dev, "reset", GPIOD_IN);
++	if (IS_ERR(gpiod))
++		return PTR_ERR(gpiod);
++	ts->gpiod_rst = gpiod;
++
++	return 0;
++}
++
+ static int goodix_ts_probe(struct i2c_client *client,
+ 			   const struct i2c_device_id *id)
+ {
+@@ -408,6 +479,18 @@ static int goodix_ts_probe(struct i2c_client *client,
+ 	ts->client = client;
+ 	i2c_set_clientdata(client, ts);
+ 
++	error = goodix_get_gpio_config(ts);
++	if (error)
++		return error;
++
++	if (ts->gpiod_int && ts->gpiod_rst) {
++		error = goodix_reset(ts);
++		if (error) {
++			dev_err(&client->dev, "Controller reset failed.\n");
++			return error;
++		}
++	}
++
+ 	error = goodix_i2c_test(client);
+ 	if (error) {
+ 		dev_err(&client->dev, "I2C communication failure: %d\n", error);

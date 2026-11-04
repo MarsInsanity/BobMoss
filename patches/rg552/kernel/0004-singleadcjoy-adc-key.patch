@@ -1,0 +1,108 @@
+diff --git a/drivers/input/joystick/singleadcjoy.c b/drivers/input/joystick/singleadcjoy.c
+index 5b9af6a95..be4ca09a8 100755
+--- a/drivers/input/joystick/singleadcjoy.c
++++ b/drivers/input/joystick/singleadcjoy.c
+@@ -117,6 +117,16 @@ struct joypad {
+ 	/* amux debug channel */
+ 	int debug_ch;
+ 
++	/*
++	 * Optional ADC key ("key_adc" io-channel): a button wired to a SARADC
++	 * line instead of a GPIO (the RG552's F key, on SARADC 1). Pressed while
++	 * the raw value is below key_adc_press, released above key_adc_release.
++	 */
++	struct iio_channel *key_iio;
++	u32 key_adc_code;
++	u32 key_adc_press, key_adc_release;
++	bool key_adc_down;
++
+ 	/* pwm device for rumble*/
+ 	struct input_dev *input;
+ 	struct pwm_device *pwm;
+@@ -763,6 +773,27 @@ static void joypad_adc_check(struct input_polled_dev *poll_dev)
+ 	input_sync(poll_dev->input);
+ }
+ 
++/*----------------------------------------------------------------------------*/
++static void joypad_key_adc_check(struct input_polled_dev *poll_dev)
++{
++	struct joypad *joypad = poll_dev->private;
++	bool down;
++	int raw;
++
++	if (!joypad->key_iio)
++		return;
++	if (iio_read_channel_raw(joypad->key_iio, &raw) < 0)
++		return;
++
++	down = joypad->key_adc_down ? raw < (int)joypad->key_adc_release
++				    : raw < (int)joypad->key_adc_press;
++	if (down != joypad->key_adc_down) {
++		input_report_key(poll_dev->input, joypad->key_adc_code, down);
++		input_sync(poll_dev->input);
++		joypad->key_adc_down = down;
++	}
++}
++
+ /*----------------------------------------------------------------------------*/
+ static void joypad_poll(struct input_polled_dev *poll_dev)
+ {
+@@ -771,6 +802,7 @@ static void joypad_poll(struct input_polled_dev *poll_dev)
+ 	if (joypad->enable) {
+ 		joypad_adc_check(poll_dev);
+ 		joypad_gpio_check(poll_dev);
++		joypad_key_adc_check(poll_dev);
+ 	}
+ 	if (poll_dev->poll_interval != joypad->poll_interval) {
+ 		mutex_lock(&joypad->lock);
+@@ -802,9 +834,12 @@ static void joypad_open(struct input_polled_dev *poll_dev)
+ 		dev_info(joypad->dev, "%s : adc[%d] adc->cal = %d\n",
+ 			__func__, nbtn, adc->cal);
+ 	}
++	joypad->key_adc_down = false;
++
+ 	/* buttons status sync */
+ 	joypad_adc_check(poll_dev);
+ 	joypad_gpio_check(poll_dev);
++	joypad_key_adc_check(poll_dev);
+ 
+ 	/* button report enable */
+ 	mutex_lock(&joypad->lock);
+@@ -1206,6 +1241,8 @@ static int joypad_input_setup(struct device *dev, struct joypad *joypad)
+ 		input_set_capability(input, gpio->report_type,
+ 				gpio->linux_code);
+ 	}
++	if (joypad->key_iio)
++		input_set_capability(input, EV_KEY, joypad->key_adc_code);
+ 
+ 	if (joypad->auto_repeat)
+ 		__set_bit(EV_REP, input->evbit);
+@@ -1303,6 +1340,28 @@ static int joypad_dt_parse(struct device *dev, struct joypad *joypad)
+ 	if (error)
+ 		return error;
+ 
++	/* Optional ADC key, see struct joypad. */
++	joypad->key_iio = devm_iio_channel_get(dev, "key_adc");
++	if (IS_ERR(joypad->key_iio)) {
++		if (PTR_ERR(joypad->key_iio) == -EPROBE_DEFER)
++			return -EPROBE_DEFER;
++		joypad->key_iio = NULL;
++	} else {
++		joypad->key_adc_code = BTN_TRIGGER_HAPPY5;
++		device_property_read_u32(dev, "key-adc-code",
++					 &joypad->key_adc_code);
++		/* 10-bit SARADC: about 1023 at rest, near 0 pressed */
++		joypad->key_adc_press = 200;
++		joypad->key_adc_release = 400;
++		device_property_read_u32(dev, "key-adc-press",
++					 &joypad->key_adc_press);
++		device_property_read_u32(dev, "key-adc-release",
++					 &joypad->key_adc_release);
++		dev_info(dev, "%s : adc key code %u (press < %u, release > %u)\n",
++			 __func__, joypad->key_adc_code,
++			 joypad->key_adc_press, joypad->key_adc_release);
++	}
++
+ 	dev_info(dev, "%s : adc key cnt = %d, gpio key cnt = %d\n",
+ 			__func__, joypad->amux_count, joypad->bt_gpio_count);
+ 

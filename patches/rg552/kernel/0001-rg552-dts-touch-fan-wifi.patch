@@ -1,5 +1,5 @@
 diff --git a/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts b/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
-index 05a02ae..1f8b5d6 100755
+index 05a02ae..509b1be 100755
 --- a/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3399-rg552-linux.dts
 @@ -16,7 +16,7 @@
@@ -11,7 +11,23 @@ index 05a02ae..1f8b5d6 100755
  
  	gpio_keys: volume-keys {
  			compatible = "gpio-keys";
-@@ -213,6 +213,9 @@
+@@ -54,8 +54,13 @@
+ 		pinctrl-0 = <&btn_pins>;
+ 
+ 		/* Analog mux define */
+-		io-channel-names = "amux_adc";
+-		io-channels = <&saradc 4>;
++		/*
++		 * dArkMoss: key_adc is the F key, on SARADC 1 (as rk_keys' "home"),
++		 * reported here as BTN_TRIGGER_HAPPY5 (patch 0004) so it reaches
++		 * everything that reads the pad.
++		 */
++		io-channel-names = "amux_adc", "key_adc";
++		io-channels = <&saradc 4>, <&saradc 1>;
+ 
+ 		/* adc mux channel count */
+ 		amux-count = <4>;
+@@ -213,6 +218,9 @@
  	aliases {
  		ethernet0 = &gmac;
  		uart0 = &uart0;
@@ -21,7 +37,7 @@ index 05a02ae..1f8b5d6 100755
  	};
  
  	xin32k: xin32k {
-@@ -305,10 +308,22 @@
+@@ -305,10 +313,22 @@
  		pinctrl-names = "default";
  		pinctrl-0 = <&wifi_pwr>;
  		regulator-name = "vcc1v8_wifi";
@@ -44,7 +60,7 @@ index 05a02ae..1f8b5d6 100755
  	vcc12v_pcie: vcc12v-pcie-regulator {
  		compatible = "regulator-fixed";
  		regulator-min-microvolt = <12000000>;
-@@ -497,7 +512,8 @@
+@@ -497,7 +517,8 @@
  		wifi_chip_type = "ap6359sa";
  		sdio_vref = <1800>;
  		WIFI,host_wake_irq = <&gpio0 RK_PA3 GPIO_ACTIVE_HIGH>;
@@ -54,7 +70,7 @@ index 05a02ae..1f8b5d6 100755
  	};
  
  	wireless-bluetooth {
-@@ -513,7 +529,8 @@
+@@ -513,7 +534,8 @@
  		BT,reset_gpio    = <&gpio0 RK_PB1 GPIO_ACTIVE_HIGH>;
  		BT,wake_gpio     = <&gpio2 RK_PD3 GPIO_ACTIVE_HIGH>;
  		BT,wake_host_irq = <&gpio0 RK_PA4 GPIO_ACTIVE_HIGH>;
@@ -64,7 +80,7 @@ index 05a02ae..1f8b5d6 100755
  	};
  
  	backlight: backlight {
-@@ -1143,22 +1160,33 @@
+@@ -1143,22 +1165,42 @@
  	};
  
  
@@ -91,6 +107,15 @@ index 05a02ae..1f8b5d6 100755
 +		interrupts = <RK_PD7 IRQ_TYPE_EDGE_FALLING>;
 +		pinctrl-names = "default";
 +		pinctrl-0 = <&touch_int>;
++		/*
++		 * The driver resets the GT927 with these at probe (patch 0003),
++		 * as ROCKNIX's mainline goodix does; without the reset it came up
++		 * with an empty config and never reported a touch.
++		 */
++		irq-gpios = <&gpio3 RK_PD7 GPIO_ACTIVE_HIGH>;
++		reset-gpios = <&gpio3 RK_PD6 GPIO_ACTIVE_HIGH>;
++		touchscreen-size-x = <1152>;
++		touchscreen-size-y = <1920>;
 +		touchscreen-inverted-x;
 +		touchscreen-inverted-y;
 +		status = "okay";
@@ -109,7 +134,7 @@ index 05a02ae..1f8b5d6 100755
  };
  
  &i2s1 {
-@@ -1372,12 +1400,16 @@ gt9xx: gt9xx@14 {
+@@ -1372,12 +1414,16 @@ gt9xx: gt9xx@14 {
  &sdio0 {
  	clock-frequency = <50000000>;
  	max-frequency = <50000000>;
@@ -128,7 +153,7 @@ index 05a02ae..1f8b5d6 100755
  	keep-power-in-suspend;
  //	mmc-pwrseq = <&sdio_pwrseq>;
  	card-detect-delay = <800>;
-@@ -1385,10 +1417,13 @@ gt9xx: gt9xx@14 {
+@@ -1385,10 +1431,13 @@ gt9xx: gt9xx@14 {
  	num-slots = <1>;
  	pinctrl-names = "default";
  	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_cd &sdio0_bus4>;
@@ -146,7 +171,7 @@ index 05a02ae..1f8b5d6 100755
  	vqmmc-supply = <&vcc3v0_touch>;
  	status = "okay";
  };
-@@ -1422,23 +1457,11 @@ gt9xx: gt9xx@14 {
+@@ -1422,23 +1471,11 @@ gt9xx: gt9xx@14 {
  	temperature = <85000>;
  };
  
@@ -175,7 +200,7 @@ index 05a02ae..1f8b5d6 100755
  
  &tcphy0 {
  	extcon = <&fusb0>;
-@@ -1734,6 +1757,12 @@ gt9xx: gt9xx@14 {
+@@ -1734,6 +1771,12 @@ gt9xx: gt9xx@14 {
  							<3 RK_PD5 RK_FUNC_GPIO &pcfg_pull_up>;
  			};
  	};
@@ -188,17 +213,8 @@ index 05a02ae..1f8b5d6 100755
  	lcd_en {
  		lcd_en_gpio: lcd-en-gpio {
  			rockchip,pins =
-@@ -1742,3 +1771,13 @@ gt9xx: gt9xx@14 {
+@@ -1742,3 +1785,4 @@ gt9xx: gt9xx@14 {
  		};
  	};
  };
 +
-+/* dArkMoss: release the touch controller from reset at boot. */
-+&gpio3 {
-+	touch-reset-hog {
-+		gpio-hog;
-+		gpios = <RK_PD6 GPIO_ACTIVE_HIGH>;
-+		output-high;
-+		line-name = "touch-reset";
-+	};
-+};
