@@ -24,6 +24,11 @@ else
 	  sudo chroot Arkbuild/ eatmydata apt-get -y update
 	  sudo chroot Arkbuild/ eatmydata apt-get -y install libc6:armhf liblzma5:armhf libasound2t64:armhf libfreetype6:armhf libxkbcommon-x11-0:armhf libudev1:armhf libudev0:armhf libgbm1:armhf libstdc++6:armhf
 	fi
+	# Check the 32-bit userland before anything is cached. build-image.yaml saves
+	# this tarball even from a failed run, and the next run would restore it,
+	# skip debootstrap and fail the same check every time. build_<unit>.sh runs
+	# this check straight after, so only the caching changes.
+	source ./verify_armhf.sh base
 	sudo cat Arkbuild/etc/os-release | grep "^DEBIAN_VERSION_FULL=" | cut -d'=' -f2 > Arkbuild_package_cache/debian_${DEBIAN_CODE_NAME}_rootfs.commit
 	echo "${BUILD_ARMHF}" > Arkbuild_package_cache/debian_${DEBIAN_CODE_NAME}_rootfs.armhf
 	sudo tar -cvpzf Arkbuild_package_cache/debian_${DEBIAN_CODE_NAME}_rootfs.tar.gz Arkbuild/
