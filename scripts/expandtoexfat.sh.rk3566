@@ -69,6 +69,15 @@ exitcode=1
 		sudo partx -a -n 5 /dev/${primary_block} &> /dev/null
 		sleep 2
 		sudo mkfs.vfat -F 32 -n SPRUCEOS /dev/${primary_block}p5 &> /dev/null || echo 1 > /tmp/code.txt
+	elif [ "$make_data" = 2 ]; then
+		# A rerun of an interrupted first boot can find p5 made but not formatted.
+		# Format it only if blkid finds no signature at all (exit 2). -D: without
+		# it, p5's own partition table entry makes blkid exit 0. blkid also exits
+		# 2 on two signatures (ambivalent), so wipefs -n must list nothing too.
+		rc=0; sudo blkid -p -D "/dev/${primary_block}p5" &> /dev/null || rc=$?
+		if [ "$rc" = 2 ] && sigs=$(sudo wipefs -n "/dev/${primary_block}p5" 2> /dev/null) && [ -z "$sigs" ]; then
+			sudo mkfs.vfat -F 32 -n SPRUCEOS "/dev/${primary_block}p5" &> /dev/null || echo 1 > /tmp/code.txt
+		fi
 	fi
 	echo 80
 	sync
