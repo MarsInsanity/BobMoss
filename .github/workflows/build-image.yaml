@@ -74,13 +74,14 @@ jobs:
           # its recorded Debian version still matches stable, so a hit here skips
           # debootstrap. run_id keeps each save a fresh entry (so a re-debootstrap
           # after a Debian point release is captured); restore-keys picks the most
-          # recent. Correctness is the build's own .commit check, not the key.
+          # recent with the same hash. The build's .commit check only covers the
+          # Debian version and the armhf flag, so there is no bare darkmoss-rootfs-
+          # fallback: a change to the hashed files must miss and re-debootstrap.
           # The unit suffix only keeps build-all's parallel legs from colliding
           # on one run_id; the rootfs itself is the same for every unit.
           key: darkmoss-rootfs-${{ hashFiles('bootstrap_rootfs.sh', 'bootstrap_rootfs-rk3566.sh', 'needed_packages.txt', 'needed_dev_packages.txt') }}-${{ github.run_id }}-${{ inputs.unit }}
           restore-keys: |
             darkmoss-rootfs-${{ hashFiles('bootstrap_rootfs.sh', 'bootstrap_rootfs-rk3566.sh', 'needed_packages.txt', 'needed_dev_packages.txt') }}-
-            darkmoss-rootfs-
 
       - name: Restore the aarch64 toolchain cache
         id: toolchain-cache
