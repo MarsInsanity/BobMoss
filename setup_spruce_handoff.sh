@@ -121,6 +121,22 @@ sudo cp scripts/spruce/darkmoss-debug.service Arkbuild/etc/systemd/system/darkmo
 # all until /boot/darkmoss-debug exists, and systemd re-checks every boot.
 sudo chroot Arkbuild/ bash -c "systemctl enable darkmoss-debug.service"
 
+# Shutdown waits. When the units are down, systemd-shutdown SIGTERMs whatever
+# is left and waits DefaultTimeoutStopSec (90 s) before SIGKILL. spruce leaves
+# its children running (KillMode=process, see spruce-launch.service), and some
+# of its scripts catch TERM without exiting - save_poweroff.sh, the one driving
+# the power-off, among them - so every power-off and reboot sat ~90 s on a dark
+# screen holding TF2 ("/mnt/SDCARD: target is busy"). By then spruce has saved
+# and closed the game, so 10 s is plenty.
+echo -e "Shortening the shutdown stop timeout...\n\n"
+sudo mkdir -p Arkbuild/etc/systemd/system.conf.d
+cat <<EOF | sudo tee Arkbuild/etc/systemd/system.conf.d/10-darkmoss-shutdown.conf >/dev/null
+# dArkMoss: see setup_spruce_handoff.sh. Also bounds the final kill wait in
+# systemd-shutdown, which inherits this value.
+[Manager]
+DefaultTimeoutStopSec=10s
+EOF
+
 # The user-facing README for this lives on the FAT partition and is written in
 # finishing_touches(-rk3566).sh, the last place the boot partition is mounted.
 # --- end logging -----------------------------------------------------------
