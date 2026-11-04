@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# probe
 if [ ! -f "/etc/sudoers.d/$USER" ]; then
   echo "Adding $USER to sudoers"
   echo "$USER ALL=(ALL:ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/$USER > /dev/null
