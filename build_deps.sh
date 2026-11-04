@@ -125,6 +125,13 @@ do
   fi
   sudo mkdir -p Arkbuild/usr/lib/${ARCHITECTURE}/
   wget --retry-connrefused --retry-on-http-error=429 --waitretry=20 -t 65 -T 60 --no-check-certificate -O ${whichmali} https://github.com/christianhaitian/${CHIPSET}_core_builds/raw/refs/heads/master/mali/${FOLDER}/${whichmali}
+  # wget -O leaves a 0-byte file on a 404/5xx. Stop before the mv, so a dead
+  # GPU blob is never shipped or cached and a good one in Arkbuild is kept.
+  if [ ! -s "${whichmali}" ]; then
+    echo "ERROR: Mali blob ${FOLDER}/${whichmali} did not download (missing or empty) - stopping the build."
+    rm -f "${whichmali}"
+    exit 1
+  fi
   sudo mv ${whichmali} Arkbuild/usr/lib/${ARCHITECTURE}/.
   cd Arkbuild/usr/lib/${ARCHITECTURE}
   sudo ln -sf ${whichmali} libMali.so
@@ -164,10 +171,18 @@ sudo chroot ${CHROOT_DIR}/ bash -c "cd /home/ark &&
   cp -L src/*.h /usr/include/go2/
   "
 
+# Never cache a chroot that lacks the Mali blob, librga or libgo2: every later
+# build would restore it as it is. This only skips the cache, never the build.
+DEPS_CACHE_OK=y
+if [ "$BIT" == "64" ] && ! sudo chroot ${CHROOT_DIR}/ bash -c "[ -s /usr/lib/aarch64-linux-gnu/${whichmali} ] && [ -s /usr/lib/aarch64-linux-gnu/librga.so ] && [ -s /usr/lib/aarch64-linux-gnu/libgo2.so ]"; then
+  echo "WARNING: ${whichmali}, librga.so or libgo2.so is missing or empty in ${CHROOT_DIR}/usr/lib/aarch64-linux-gnu - NOT caching this chroot."
+  DEPS_CACHE_OK=n
+fi
+
 # Snapshot the prepared chroot for the next build. --one-file-system keeps tar
 # out of the live bind mounts even if an exclude is ever missed; the explicit
 # excludes cover the kernel's own cached paths and the ccache bind.
-if [ "$BIT" == "64" ]; then
+if [ "$BIT" == "64" ] && [ "$DEPS_CACHE_OK" == "y" ]; then
   echo "Packing the prepared chroot for the build cache..."
   sudo umount ${CHROOT_DIR}/home/ark/Arkbuild_ccache 2>/dev/null
   if sudo tar --zstd -cf chroot-deps.tar.zst \
