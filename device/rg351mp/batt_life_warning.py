@@ -6,6 +6,8 @@ import time
 
 batt_life = "/sys/class/power_supply/battery/capacity"
 pwr_led = "/sys/class/gpio/gpio77/value"
+while not os.path.exists(pwr_led):
+        time.sleep(10)
 
 while(True):
         if int(open(batt_life, "r").read()) <= 10:

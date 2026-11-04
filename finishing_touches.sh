@@ -362,7 +362,12 @@ elif [[ "$UNIT" == "rg351mp" ]] || [[ "$UNIT" == "g350" ]] || [[ "$UNIT" == "a10
     sudo chmod 777 Arkbuild/opt/system/"Change LED to Red.sh"
   fi
   sudo cp device/rg351mp/*.service Arkbuild/etc/systemd/system/
-  sudo chroot Arkbuild/ bash -c "systemctl enable 351mp batt_led"
+  # XU Mini M: gpio77 is the joypad's amux select line, not an LED; no batt_led there.
+  if [[ "$UNIT" == "xumini" ]]; then
+    sudo chroot Arkbuild/ bash -c "systemctl enable 351mp"
+  else
+    sudo chroot Arkbuild/ bash -c "systemctl enable 351mp batt_led"
+  fi
 fi
 
 # Make all scripts in /usr/local/bin executable, world style
