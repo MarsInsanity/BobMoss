@@ -24,7 +24,9 @@ fi
 cd u-boot-${CHIPSET}
 if [ "$UNIT" == "xumini" ]; then
   # xumini-uboot.dts is ours; RG351MP-u-boot has no such unit upstream.
+  # Without its Makefile line U-Boot still builds, but not xumini-uboot.dtb.
   patch -p1 < ../patches/xumini/uboot/0001-arch-arm-dts-Makefile.patch
+  verify_action
   cp ../patches/xumini/uboot/xumini-uboot.dts arch/arm/dts/
 fi
 if [ "$UNIT" == "g350" ]; then
@@ -67,7 +69,11 @@ dd if="sd_fuse/idbloader.img" of="../${DISK}" bs=512 seek=64 conv=sync,noerror,n
 dd if="sd_fuse/uboot.img" of="../${DISK}" bs=512 seek=16384 conv=sync,noerror,notrunc
 dd if="sd_fuse/trust.img" of="../${DISK}" bs=512 seek=24576 conv=sync,noerror,notrunc
 if [ "$UNIT" == "rg351mp" ] || [ "$UNIT" == "g350" ] || [ "$UNIT" == "a10mini" ] || [ "$UNIT" == "xumini" ]; then
+  # build_kernel.sh puts this on BOOT as the one U-Boot dtb U-Boot loads
+  # (uboot.dtb, or rg351mp-uboot.dtb on the A10 Mini): without it a fresh
+  # flash stops in U-Boot.
   cp arch/arm/dts/${UNIT}-uboot.dtb /tmp/
+  verify_action
 fi
 cd ..
 rm -rf u-boot-${CHIPSET}
