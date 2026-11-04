@@ -124,7 +124,7 @@ do
     FOLDER="armhf"
   fi
   sudo mkdir -p Arkbuild/usr/lib/${ARCHITECTURE}/
-  wget --retry-connrefused --retry-on-http-error=429 --waitretry=20 -t 65 -T 60 --no-check-certificate -O ${whichmali} https://github.com/christianhaitian/${CHIPSET}_core_builds/raw/refs/heads/master/mali/${FOLDER}/${whichmali}
+  wget --retry-connrefused --retry-on-http-error=429,500,502,503 --waitretry=20 -t 65 -T 60 --no-check-certificate -O ${whichmali} https://github.com/christianhaitian/${CHIPSET}_core_builds/raw/refs/heads/master/mali/${FOLDER}/${whichmali}
   # wget -O leaves a 0-byte file on a 404/5xx. Stop before the mv, so a dead
   # GPU blob is never shipped or cached and a good one in Arkbuild is kept.
   if [ ! -s "${whichmali}" ]; then
