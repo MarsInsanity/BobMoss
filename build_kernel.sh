@@ -32,13 +32,15 @@ if [ ! -d "$KERNEL_SRC" ]; then
 fi
 if [ "$UNIT" == "xumini" ] && [ ! -f "$KERNEL_SRC/arch/arm64/boot/dts/rockchip/rk3326-xumini-linux.dts" ]; then
   # Temporary: christianhaitian/linux's rg351 has no xumini unit of its own
-  # yet. This is a plain 3-patch series (DTS, xu10-joypad driver, defconfig
-  # line) meant to git-am cleanly onto rg351 as-is; drop this whole block
-  # for a one-line change if rg351 ever carries the board itself.
+  # yet. This is a plain 4-patch series (DTS, xu10-joypad driver, defconfig
+  # line, charger detection) meant to git-am cleanly onto rg351 as-is; drop
+  # this whole block for a one-line change if rg351 ever carries the board.
   # Absolute path: the shell expands the glob from here, not from $KERNEL_SRC.
+  # git am stops at the first patch that fails; the dts check alone would pass
+  # once 0001 is in and build a kernel with no joypad driver, so check both.
   git -C $KERNEL_SRC -c user.name=dArkMoss -c user.email=dArkMoss@localhost \
-    am "$PWD"/patches/xumini/kernel/series/*.patch
-  test -f "$KERNEL_SRC/arch/arm64/boot/dts/rockchip/rk3326-xumini-linux.dts"
+    am "$PWD"/patches/xumini/kernel/series/*.patch \
+    && test -f "$KERNEL_SRC/arch/arm64/boot/dts/rockchip/rk3326-xumini-linux.dts"
   verify_action
 fi
 cd $KERNEL_SRC
