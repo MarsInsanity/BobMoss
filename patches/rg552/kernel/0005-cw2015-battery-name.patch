@@ -1,0 +1,13 @@
+diff --git a/drivers/power/cw2015_fuel_gauge_V5.1.c b/drivers/power/cw2015_fuel_gauge_V5.1.c
+index 322c30304..aab16d664 100755
+--- a/drivers/power/cw2015_fuel_gauge_V5.1.c
++++ b/drivers/power/cw2015_fuel_gauge_V5.1.c
+@@ -21,7 +21,7 @@
+ #define USB_CHARGING_FILE "/sys/class/power_supply/usb/online" // Chaman
+ #define DC_CHARGING_FILE "/sys/class/power_supply/ac/online"
+ */
+-#define CW_PROPERTIES "bat"
++#define CW_PROPERTIES "battery"
+ 
+ #define REG_VERSION             0x0
+ #define REG_VCELL               0x2

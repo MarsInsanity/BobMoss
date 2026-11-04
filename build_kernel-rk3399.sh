@@ -14,6 +14,8 @@
 #                              reset at probe), DT size on an empty config
 #   patches/rg552/kernel/0004  singleadc joypad: optional ADC key (the F key
 #                              on SARADC 1) reported on the pad
+#   patches/rg552/kernel/0005  cw2015 gauge registers as "battery", not "bat",
+#                              the name apps read (/sys/class/power_supply/battery)
 #
 # The internal Wi-Fi is an RTL8188FU on USB, which this kernel has no driver
 # for, so kelebek333's out-of-tree one is built against it (as AmberELEC does).
