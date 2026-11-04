@@ -62,6 +62,14 @@ for fix in $UBOOT_OPTIN; do
   verify_action
 done
 ./make.sh odroidgoa
+# A failed U-Boot build leaves these missing, and the dd's below would leave the
+# loader area blank: no image boots, and the .dmupd would blank updated cards.
+for f in sd_fuse/idbloader.img sd_fuse/uboot.img sd_fuse/trust.img; do
+  if [ ! -s "$f" ]; then
+    echo "ERROR: U-Boot did not produce $f - the image would not boot."
+    exit 1
+  fi
+done
 
 dd if="sd_fuse/idbloader.img" of="../${DISK}" bs=512 seek=64 conv=sync,noerror,notrunc
 dd if="sd_fuse/uboot.img" of="../${DISK}" bs=512 seek=16384 conv=sync,noerror,notrunc

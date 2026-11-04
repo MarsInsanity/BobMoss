@@ -224,6 +224,21 @@ fi
 LOADER_FILE=""
 if [ "$CHIPSET" = "rk3326" ]; then
   sudo dd if=${DISK} bs=512 skip=64 count=$((SYSTEM_PART_START - 64)) 2>/dev/null | gzip -c > "$WORK/loader.img.gz"
+  # image_setup.sh dd's idbloader, uboot and trust to sectors 64, 16384 and 24576.
+  # One left blank means U-Boot did not build, and the applier would write it
+  # over every updated card's loader: refuse to pack it.
+  gzip -dc "$WORK/loader.img.gz" > "$WORK/loader.check"
+  while read -r loader_part loader_first loader_next; do
+    if [ "$(dd if="$WORK/loader.check" bs=512 skip=$((loader_first - 64)) count=$((loader_next - loader_first)) 2>/dev/null | tr -d '\000' | wc -c)" = 0 ]; then
+      echo "ERROR: the loader's ${loader_part} (sector ${loader_first}) is blank - not packing an update that would not boot."
+      exit 1
+    fi
+  done <<EOF
+idbloader 64 16384
+uboot 16384 24576
+trust 24576 ${SYSTEM_PART_START}
+EOF
+  rm -f "$WORK/loader.check"
   LOADER_FILE=loader.img.gz
 fi
 
