@@ -10,11 +10,11 @@
   },
   "lcdyk0517/arkos.bsp.4.4": {
     "branch": "rg351",
-    "commit": "1d9c84894a67"
+    "commit": "923a6105701d"
   },
   "spruceUI/spruceOS": {
     "branch": "Development",
-    "commit": "254b308ae4657e729a7a1d2100442a6efb4290ba",
+    "commit": "6861c2b56ef23013dfdb7c87a00959825a8f68d4",
     "latest_release": "v4.5.6"
   },
   "spruceUI/spruceOSNightlies": {
