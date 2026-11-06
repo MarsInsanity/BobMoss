@@ -74,9 +74,10 @@ oga_controls, drm_tool), the hardware helpers and image assembly.
 Not on the image any more, because nothing spruce runs uses it: compilers and
 `-dev` packages (clang/LLVM, rustc/cargo, gcc, OCaml, OpenJDK/ant), VLC, Samba
 (spruce runs its own smbd), hostapd/dnsmasq AP mode, espeak/mbrola, the CJK
-font set, `locales-all` (en_US.UTF-8 is generated), and the fluidsynth CLI with
-the qsynth/Qt6 and 140 MB soundfont it recommended (libfluidsynth3 stays, with
-the small TimGM6mb soundfont).
+font set, `locales-all` (en_US.UTF-8 is generated), Mesa's Vulkan drivers
+(every unit renders through the Mali blob), pocketsphinx's speech model, and
+the fluidsynth CLI with the qsynth/Qt6 and 140 MB soundfont it recommended
+(libfluidsynth3 stays, with the small TimGM6mb soundfont).
 
 Units:
 

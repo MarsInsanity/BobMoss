@@ -152,7 +152,10 @@ sudo tar -C Arkbuild --numeric-owner --no-recursion -T "$WORK/layer" -czf "$WORK
 # fresh flash.
 sudo chroot Arkbuild dpkg-query -W -f '${db:Status-Status} ${Package}:${Architecture} ${Version}\n' \
   | awk '$1 == "installed" {print $2" "$3}' | sort > "$WORK/installed"
-comm -23 "$WORK/installed" dmupd-baseline.txt > "$WORK/new-packages"
+# Both sides in one collation: dmupd-baseline.txt is not in sort(1)'s order
+# ("ant-optional" after "ant"), and comm on unsorted input silently mis-lists
+# lines - "comm: file 2 is not in sorted order" in every build log.
+comm -23 <(LC_ALL=C sort "$WORK/installed") <(LC_ALL=C sort dmupd-baseline.txt) > "$WORK/new-packages"
 mkdir -p "$WORK/pkgmeta"
 : > "$WORK/pkgfiles"
 : > "$WORK/pkgkeys"

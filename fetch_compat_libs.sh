@@ -5,38 +5,46 @@
 # Requires: utils.sh (verify_action, call_chroot), BUILD_ARMHF env var
 # ==============================================================================
 
+# Download one .deb and install the one library in it into Arkbuild's $3.
+#
+# snapshot.debian.org throttles bursts of requests, and upstream gave each
+# download three quick tries, then extracted from whatever was there: a failed
+# download left a 0-byte libavformat.so.58 / libswresample.so.3 in the image.
+# An empty file is worse than none - the loader stops at it with "file too
+# short" instead of going on to a port's own copy - so retry with backoff, and
+# install nothing rather than an empty file.
+fetch_compat_lib() {
+    local url="$1" lib_name="$2" libdir="$3" wildcard="$4"
+    local deb try
+    deb="$(basename "$url")"
+    for try in 1 2 3 4 5 6; do
+        rm -f "$deb"
+        wget -q --retry-connrefused --retry-on-http-error=429,500,502,503,504 --waitretry=20 \
+            -t 5 -T 60 --no-check-certificate -O "$deb" "$url" && [ -s "$deb" ] && break
+        echo "Download of $deb failed (try $try), waiting before the next one..."
+        sleep $((try * 15))
+    done
+    rm -f "$lib_name"
+    [ -s "$deb" ] && dpkg --fsys-tarfile "$deb" | tar -xO --wildcards "*$wildcard*" > "$lib_name"
+    rm -f "$deb"
+    if [ ! -s "$lib_name" ]; then
+        echo "[Error] Could not fetch $lib_name for ${libdir}; not installed: $url"
+        rm -f "$lib_name"
+        return 1
+    fi
+    sudo mv -f "$lib_name" "Arkbuild/usr/lib/${libdir}/"
+    call_chroot "chown root:root /usr/lib/${libdir}/$lib_name"
+}
+
 install_lib() {
     local url="$1"
     local lib_name="$2"
     local wildcard="$3"
 
     echo "Processing $lib_name..."
-
-    # --- ARM64 ---
-    local deb_arm64=$(basename "$url")
-    wget -t 3 -T 60 --no-check-certificate "$url"
-    #verify_action
-    dpkg --fsys-tarfile "$deb_arm64" | tar -xO --wildcards "*$wildcard*" > "$lib_name"
-    if [ ! -s "$lib_name" ]; then
-        echo "[Error] Extraction failed for $lib_name"
-    fi
-    sudo mv -f "$lib_name" Arkbuild/usr/lib/aarch64-linux-gnu/
-    call_chroot "chown root:root /usr/lib/aarch64-linux-gnu/$lib_name"
-    rm -f "$deb_arm64"
-
-    # --- ARMHF ---
+    fetch_compat_lib "$url" "$lib_name" aarch64-linux-gnu "$wildcard"
     if [[ "${BUILD_ARMHF}" == "y" ]]; then
-        local url_armhf="${4:-${url//_arm64/_armhf}}"
-        local deb_armhf=$(basename "$url_armhf")
-        wget -t 3 -T 60 --no-check-certificate "$url_armhf"
-        #verify_action
-        dpkg --fsys-tarfile "$deb_armhf" | tar -xO --wildcards "*$wildcard*" > "$lib_name"
-        if [ ! -s "$lib_name" ]; then
-            echo "[Error] Extraction failed for $lib_name (armhf)"
-        fi
-        sudo mv -f "$lib_name" Arkbuild/usr/lib/arm-linux-gnueabihf/
-        call_chroot "chown root:root /usr/lib/arm-linux-gnueabihf/$lib_name"
-        rm -f "$deb_armhf"
+        fetch_compat_lib "${4:-${url//_arm64/_armhf}}" "$lib_name" arm-linux-gnueabihf "$wildcard"
     fi
 }
 

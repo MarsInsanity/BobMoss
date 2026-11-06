@@ -17,7 +17,17 @@ call_chroot "rm -rf /meson /usr/bin/meson"
 #
 # Anything a runtime list also names is kept, and the list is cut down to what
 # is installed: apt refuses the whole command over one name it cannot find.
-BUILD_ONLY_PACKAGES=( gcc-12 g++-12 cpp-12 autoconf automake python3-docutils )
+#
+# build-essential's own set is named too: apt Suggests dpkg-dev, and autoremove
+# keeps whatever an installed package suggests, so dpkg-dev, and the gcc it
+# recommends, outlived build-essential.
+#
+# Two runtime leftovers go the same way, both only Recommends of what stays:
+# Mesa's Vulkan drivers (from ffmpeg's libplacebo; every unit renders through
+# the Mali blob, and rk3566 ships the Mali Vulkan ICD and deletes Mesa's ICD
+# files below anyway) and pocketsphinx's English model (ffmpeg's speech filter).
+BUILD_ONLY_PACKAGES=( gcc-12 g++-12 cpp-12 autoconf automake python3-docutils
+  dpkg-dev gcc g++ make libc6-dev mesa-vulkan-drivers pocketsphinx-en-us )
 while read -r BUILD_ONLY_PACKAGE; do
   [[ -z "$BUILD_ONLY_PACKAGE" || "$BUILD_ONLY_PACKAGE" =~ ^# ]] && continue
   BUILD_ONLY_PACKAGES+=( "$BUILD_ONLY_PACKAGE" )
@@ -33,7 +43,9 @@ if [ ${#REMOVE_PACKAGES[@]} -gt 0 ]; then
   echo "Removing build-only packages: ${REMOVE_PACKAGES[*]}"
   call_chroot "DEBIAN_FRONTEND=noninteractive apt-get -y purge ${REMOVE_PACKAGES[*]}"
 fi
-call_chroot "DEBIAN_FRONTEND=noninteractive apt-get -y autoremove --purge"
+# Suggests are not a reason to keep a package here: nothing on this image is
+# installed for what another package merely suggests.
+call_chroot "DEBIAN_FRONTEND=noninteractive apt-get -y -o APT::AutoRemove::SuggestsImportant=false autoremove --purge"
 call_chroot "apt -y clean"
 
 if [[ "${BUILD_ARMHF}" == "y" ]]; then
