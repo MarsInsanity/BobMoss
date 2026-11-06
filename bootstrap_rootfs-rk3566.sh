@@ -43,10 +43,13 @@ echo "exit 101" | sudo tee Arkbuild/usr/sbin/policy-rc.d > /dev/null
 sudo chmod 0755 Arkbuild/usr/sbin/policy-rc.d
 sudo chroot Arkbuild/ mount -t proc proc /proc
 
-# Install base runtime packages
+# Install base runtime packages. locales without locales-all: only en_US.UTF-8
+# is generated (below) and spruce needs no other. No fluidsynth CLI: it pulled
+# qsynth, Qt6 and a 140 MB soundfont in as Recommends; the library is in
+# needed_packages.txt.
 sudo chroot Arkbuild/ eatmydata apt-get -y update
 sudo chroot Arkbuild/ eatmydata apt-get -y upgrade
-sudo chroot Arkbuild/ eatmydata apt-get install -y btrfs-progs initramfs-tools sudo evtest network-manager systemd-sysv locales locales-all ssh dosfstools fluidsynth
+sudo chroot Arkbuild/ eatmydata apt-get install -y btrfs-progs initramfs-tools sudo evtest network-manager systemd-sysv locales ssh dosfstools
 sudo chroot Arkbuild/ eatmydata apt-get install -y python3 python3-pip
 sudo sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' Arkbuild/etc/locale.gen
 echo 'LANG="en_US.UTF-8"' | sudo tee -a Arkbuild/etc/default/locale > /dev/null

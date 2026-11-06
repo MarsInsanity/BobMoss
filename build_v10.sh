@@ -38,7 +38,7 @@ source ./image_setup.sh
 source ./build_kernel.sh
 source ./build_deps.sh
 # dArkMoss: spruce brings the frontend and emulators on TF2, so only the port
-# runtime is built here - see build_rgb30.sh for what upstream builds and why.
+# runtime and the hardware helpers are built here - see build_rgb30.sh.
 source ./build_sdl2.sh
 if [[ "${BUILD_ARMHF}" == "y" ]]; then
   source ./build_arm32_libs.sh
@@ -52,6 +52,7 @@ source ./finishing_touches.sh
 source ./setup_spruce_handoff.sh
 source ./cleanup_filesystem.sh
 source ./verify_armhf.sh full
+source ./verify_runtime_libs.sh
 source ./build_update.sh
 source ./write_rootfs.sh
 source ./clean_mounts.sh

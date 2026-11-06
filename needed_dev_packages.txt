@@ -1,51 +1,26 @@
-ant
+# Build-only packages: installed for the in-chroot builds (meson/librga,
+# premake4/libgo2, SDL2, gptokeyb, oga_controls, drm_tool, BatteryPlus,
+# bluez-alsa; the rk3326 armhf SDL2 runs autogen.sh + configure) and removed
+# again by cleanup_filesystem.sh. Anything a built binary needs at runtime
+# belongs in needed_packages.txt, which is protected.
+autoconf
+automake
 autotools-dev
 build-essential
 ccache
-curl
-jq
+cmake
+git
 libasound2-dev
-libboost-date-time-dev
-libboost-dev
-libboost-filesystem1.88-dev
-libboost-locale-dev
-libboost-regex-dev
-libboost-system-dev
-libcurl4-openssl-dev
 libdrm-dev
-libeigen3-dev
 libevdev-dev
-libfmt-dev
-libfontconfig1-dev
-libfreeimage-dev
-libfreetype-dev
-libinih-dev
-libluajit-5.1-dev
-libmpeg2-4-dev
-libncurses-dev
-libnl-3-dev
-libnl-genl-3-dev
-libnl-route-3-dev
-libogg-dev
 libopenal-dev
-libphysfs-dev
-libpixman-1-dev
 libpng-dev
-libsdl2-gfx-dev
-libsdl2-image-dev
-libsdl2-mixer-dev
-libsdl2-ttf-dev
-libslirp-dev
-libssl-dev
-libssl-ocaml-dev
-libstdc++-12-dev
-libsoxr-dev
-libvlc-dev
-libvlccore-dev
-libvorbisidec-dev
-libvpx-dev
-libvulkan-dev
-libzip-dev
+libsdl2-dev
+libtool
+libtool-bin
+libudev-dev
 ninja-build
 pkg-config
-rapidjson-dev
+premake4
+python3-pip
+python3-wheel

@@ -288,7 +288,7 @@ function protect_package() {
      if [[ $? != "0" ]]; then
        echo "${protectedlib} could not mark as manually installed."
      else
-	   echo "$${protectedlib} has been marked as manually installed."
+	   echo "${protectedlib} has been marked as manually installed."
      fi
   done
 }

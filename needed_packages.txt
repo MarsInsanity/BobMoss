@@ -1,32 +1,92 @@
+# Runtime packages: installed into the image and marked manual so the
+# build-only packages (needed_dev_packages.txt) can be removed after the build
+# without taking these with them. Only what spruce, RetroArch, the standalone
+# emulators, PICO-8, PortMaster ports and the hardware need on the base.
+#
+# --- system, storage and first boot -----------------------------------------
+# cron runs the @reboot jobs finishing_touches installs (governor, audio path,
+# headphones, LEDs, panel settings, USB DAC); fdisk's sfdisk and growpart
+# (cloud-guest-utils) expand the card on first boot.
+bsdextrautils
+btrfs-progs
+cloud-guest-utils
+console-setup
+cron
+dialog
+dos2unix
+exfatprogs
+fdisk
+iproute2
+ntfs-3g
+procps
+p7zip-full
+psmisc
+pv
+rsync
+systemd-timesyncd
+tar
+unzip
+wget
+xfsprogs
+xxd
+zip
+# --- hardware: audio, input, display, WiFi/BT firmware, USB gadget ----------
+# wpasupplicant, usb-modeswitch (40-usb_modeswitch.rules flips RTL8821CU
+# dongles out of CD-ROM mode) and wireless-regdb only came in as Recommends;
+# named here so removing the build packages can never take WiFi with it.
 adbd
 alsa-utils
 brightnessctl
-bsdextrautils
-btrfs-progs
-ccache
-cloud-guest-utils
-cmake
-console-setup
-device-tree-compiler
-dialog
-dnsmasq
-dos2unix
-espeak-ng
-exfatprogs
-ffmpeg
 firmware-mediatek
 firmware-realtek
-fonts-noto-cjk
-git
-hostapd
 iw
+rfkill
+usb-modeswitch
+wireless-regdb
+wpasupplicant
+# --- tools spruce calls on this base ----------------------------------------
+# curl: PICO-8's BBS downloads; jq: spruce and the USBMode app; nc: RetroArch
+# menu toggle; ffmpeg: screenshot fallback (and the codec libraries the
+# PortMaster compat libs in fetch_compat_libs.sh link against).
+curl
+ffmpeg
+jq
+netcat-openbsd
+# --- libraries spruce's own binaries load from the base ---------------------
+# RetroArch and its cores, the standalone emulators, PICO-8, spruce's helpers:
+# what their DT_NEEDED entries ask for that spruce does not ship. Most arrive as
+# dependencies anyway; named so verify_runtime_libs.sh never depends on luck.
+# libdrm2 is also all the Mali blobs need beyond glibc and libstdc++.
+libbsd0
+libcurl4t64
+libdbus-1-3
+libdrm2
+libfontconfig1
+libgomp1
+libharfbuzz0b
+libsndfile1
+libspeexdsp1
+libsqlite3-0
+libtheoraenc1
+libvorbisenc2
+# --- python for the base's own helpers (bootlogo, hpjackd, LED/battery) -----
+python3
+python3-evdev
+python3-setuptools
+python3-urwid
+# --- port runtime libraries -------------------------------------------------
+# What ArkOS/dArkOS ports expect to find on the system. spruce's own binaries
+# need little of it (verify_runtime_libs.sh checks what they do need), but
+# PortMaster ports are built against this set.
 liba52-0.7.4
 libarchive-zip-perl
 libasound2t64
 libboost-filesystem1.83.0
 libboost-filesystem1.88.0
 libenet7
+libevdev2
 libfaad2
+libfluidsynth3
 libfreeimage3
 libfreetype6
 libglew2.2
@@ -43,7 +103,6 @@ libphysfs1
 libpixman-1-0
 libpng16-16t64
 libsdl2-2.0-0
-libsdl2-dev
 libsdl2-gfx-1.0-0
 libsdl2-image-2.0-0
 libsdl2-mixer-2.0-0
@@ -55,41 +114,11 @@ libspeechd2
 libstdc++6
 libtcl8.6
 libtheora0
-libtool
-libtool-bin
 libudev1
 libvorbisidec1
 libvpx9
 libxkbcommon0
 libzip5
-mbrola
-mbrola-us1
-mbrola-us2
-mbrola-us3
-netcat-openbsd
-ntfs-3g
-p7zip-full
-premake4
-psmisc
-pv
-python3
-python3-evdev
-python3-pip
-python3-setuptools
-python3-urwid
-python3-wheel
-rfkill
-rsync
-rustc
-samba
-sshpass
-systemd-timesyncd
-tar
-unzip
-vlc-bin
-vlc-data
-vlc-plugin-base
-wget
-xfsprogs
-xxd
-zip
+# General MIDI soundfont for fluidsynth (EasyRPG, SDL_mixer in ports). Named so
+# apt does not pull fluid-soundfont-gm (~140 MB) in for the same job.
+timgm6mb-soundfont

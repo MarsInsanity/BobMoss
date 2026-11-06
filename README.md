@@ -31,8 +31,6 @@ Now you should be able to just run make <device_name> to build for a supported d
 - To build on a different release of Debian, change the DEBIAN_CODE_NAME export in the Makefile or add DEBIAN_CODE_NAME=<release> as a variable to `make`.  Other debian code names can be found at https://www.debian.org/releases/
 - By default, this will build with both a 64bit and 32bit userspace.  This is primarily to support some 32bit ports available through PortMaster.  There are also some 32bit retroarch emulators available but the performance seems to be similar to the 64bit retroarch emulators at this point.
  - To build without 32bit support, change the BUILD_ARMHF export in the Makefile to n or add BUILD_ARMHF=n as a variable to `make`.
-- For RK3566, you can add Kodi to your build.  Just change the BUILD_KODI export in the Makefile to y or add BUILD_KODI=y as a variavble to `make`.  Kodi is also available as a prepackaged build in the extra_packages/rk3566 subfolder.  Just copy it to your tools folder and launch from Options/Tools in the start menu.
- - Be aware that building Kodi will add a significant amount of time to your build.  Could be double or triple the build time.
 - Initial build time on an Intel I7-8700 65w unit with a 512GB NVME SSD and 32GB of DDR4 memory is a little over 19 hours.  Subsequent builds are about 3 hours thanks to ccache.
 
 # Credits and Thanks
@@ -53,10 +51,32 @@ test webhook.... again......again!
 ## dArkMoss
 
 dArkMoss is spruceUI's fork of dArkOS: a Debian base OS on TF1 that hands off to
-[spruce](https://github.com/spruceUI/spruceOS) on TF2. The emulator and
-EmulationStation builds are stripped from the unit build scripts because spruce
-provides all of that from its own card; what is left is debootstrap, the kernel
-and image assembly.
+[spruce](https://github.com/spruceUI/spruceOS) on TF2. spruce brings the
+frontend, RetroArch, the standalone emulators, PICO-8 and PortMaster from its
+own card, so this repository no longer carries dArkOS's emulator,
+EmulationStation and Kodi builds, nor its non-spruce units; what is left is
+debootstrap, the kernel, the port runtime (SDL2, librga, libgo2, gptokeyb,
+oga_controls, drm_tool), the hardware helpers and image assembly.
+
+### What goes on the image (moss-lite)
+
+- `needed_packages.txt`: the runtime set, marked manual. Hardware (firmware,
+  WiFi, BT, audio, input, USB gadget), what spruce calls on this base (nmcli,
+  amixer, jq, curl, nc, ffmpeg, python3), the libraries spruce's own binaries
+  load from the base, and the port runtime libraries ArkOS/dArkOS ports expect.
+- `needed_dev_packages.txt`: build-only. Installed for the in-chroot builds and
+  purged, with what they pulled in, by `cleanup_filesystem.sh`.
+- `verify_runtime_libs.sh` runs after cleanup and stops the build if any
+  program the build added on top of Debian, or any library spruce's binaries
+  load from the base, would not resolve. If it fails, name the package that
+  provides the missing library in `needed_packages.txt`.
+
+Not on the image any more, because nothing spruce runs uses it: compilers and
+`-dev` packages (clang/LLVM, rustc/cargo, gcc, OCaml, OpenJDK/ant), VLC, Samba
+(spruce runs its own smbd), hostapd/dnsmasq AP mode, espeak/mbrola, the CJK
+font set, `locales-all` (en_US.UTF-8 is generated), and the fluidsynth CLI with
+the qsynth/Qt6 and 140 MB soundfont it recommended (libfluidsynth3 stays, with
+the small TimGM6mb soundfont).
 
 Units:
 

@@ -6,123 +6,60 @@ call_chroot "rm -rf /home/ark/EmulationStation-fcamod"
 call_chroot "rm -rf /home/ark/libgo2"
 call_chroot "rm -rf /home/ark/linux-rga"
 call_chroot "rm -rf /home/ark/${CHIPSET}_core_builds"
-if [[ "${CHIPSET}" == "rk3566" ]]; then
-  call_chroot "apt-mark hold ffmpeg"
-fi
-call_chroot "apt remove -y autotools-dev \
-  build-essential \
-  ccache \
-  clang \
-  cmake \
-  g++ \
-  liba52-0.7.4-dev \
-  libasound2-dev \
-  libboost-date-time-dev \
-  libboost-dev \
-  libboost-filesystem-dev \
-  libboost-locale-dev \
-  libboost-regex-dev \
-  libboost-system-dev \
-  libcurl4-openssl-dev \
-  libdrm-dev \
-  libeigen3-dev \
-  libevdev-dev \
-  libxext-dev \
-  libfaad-dev \
-  libflac-dev \
-  libfontconfig1-dev \
-  libfreeimage-dev \
-  libfreetype-dev \
-  libfribidi-dev \
-  libglew-dev \
-  libglfw3-dev \
-  libjpeg62-turbo-dev \
-  libluajit-5.1-dev \
-  libmad0-dev \
-  libmpeg2-4-dev \
-  libncurses-dev \
-  libnl-3-dev \
-  libnl-genl-3-dev \
-  libnl-route-3-dev \
-  libogg-dev \
-  libopenal-dev \
-  libphysfs-dev \
-  libpng-dev \
-  libsdl2-dev \
-  libsdl2-gfx-dev \
-  libsdl2-image-dev \
-  libsdl2-mixer-dev \
-  libsdl2-ttf-dev \
-  libshaderc-dev \
-  libslirp-dev \
-  libsm-dev \
-  libsoxr-dev \
-  libspeechd-dev \
-  libssl-dev \
-  libssl-ocaml-dev \
-  libstdc++-12-dev \
-  libtheora-dev \
-  libudev-dev \
-  libvlc-dev \
-  libvlccore-dev \
-  libvorbis-dev \
-  libvorbisidec-dev \
-  libvpx-dev \
-  libvulkan-dev \
-  libx11-dev \
-  libx11-xcb1 \
-  libxcb-dri2-0 \
-  libyaml-dev \
-  libzip-dev \
-  ninja-build \
-  pkg-config \
-  premake4 \
-  rapidjson-dev \
-  zlib1g-dev"
+call_chroot "rm -rf /meson /usr/bin/meson"
 
-call_chroot "apt -y autoremove"
+# Remove what only the build needed: everything in needed_dev_packages.txt, plus
+# what build_deps.sh (gcc-12/g++-12) and build_bluealsa.sh (autotools, docutils)
+# install on their own. Upstream removed a hand-kept list here and then
+# reinstalled needed_packages.txt, which carried cmake, libsdl2-dev, libtool,
+# rustc and ccache - so most of the toolchain (clang/llvm, rust, gcc, ~100 -dev
+# packages) came straight back and shipped in the image.
+#
+# Anything a runtime list also names is kept, and the list is cut down to what
+# is installed: apt refuses the whole command over one name it cannot find.
+BUILD_ONLY_PACKAGES=( gcc-12 g++-12 cpp-12 autoconf automake python3-docutils )
+while read -r BUILD_ONLY_PACKAGE; do
+  [[ -z "$BUILD_ONLY_PACKAGE" || "$BUILD_ONLY_PACKAGE" =~ ^# ]] && continue
+  BUILD_ONLY_PACKAGES+=( "$BUILD_ONLY_PACKAGE" )
+done <needed_dev_packages.txt
+RUNTIME_PACKAGES="$(cat needed_packages.txt bluetooth_needed_packages.txt | grep -v '^#')"
+INSTALLED_PACKAGES="$(sudo chroot Arkbuild/ dpkg-query -W -f '${db:Status-Status} ${Package}\n' | awk '$1 == "installed" {print $2}' | sort -u)"
+REMOVE_PACKAGES=()
+for BUILD_ONLY_PACKAGE in "${BUILD_ONLY_PACKAGES[@]}"; do
+  grep -qxF "$BUILD_ONLY_PACKAGE" <<<"$RUNTIME_PACKAGES" && continue
+  grep -qxF "$BUILD_ONLY_PACKAGE" <<<"$INSTALLED_PACKAGES" && REMOVE_PACKAGES+=( "$BUILD_ONLY_PACKAGE" )
+done
+if [ ${#REMOVE_PACKAGES[@]} -gt 0 ]; then
+  echo "Removing build-only packages: ${REMOVE_PACKAGES[*]}"
+  call_chroot "DEBIAN_FRONTEND=noninteractive apt-get -y purge ${REMOVE_PACKAGES[*]}"
+fi
+call_chroot "DEBIAN_FRONTEND=noninteractive apt-get -y autoremove --purge"
 call_chroot "apt -y clean"
 
 if [[ "${BUILD_ARMHF}" == "y" ]]; then
   # Ensure additional needed packages are still in place
   while read NEEDED_PACKAGE; do
-    if [[ ! "$NEEDED_PACKAGE" =~ ^# ]]; then
+    if [[ -n "$NEEDED_PACKAGE" ]] && [[ ! "$NEEDED_PACKAGE" =~ ^# ]]; then
       install_package armhf ${NEEDED_PACKAGE}
     fi
   done <needed_packages32.txt
   sync Arkbuild
 fi
 
-# Ensure additional needed packages for Kodi are still in place if Kodi is built
-if [[ "$CHIPSET" == *"3566"* ]] && [[ "$BUILD_KODI" == "y" ]]; then
-  while read KODI_NEEDED_PACKAGE; do
-    if [[ ! "$KODI_NEEDED_PACKAGE" =~ ^# ]] && [[ "$KODI_NEEDED_PACKAGE" != *"-dev"* ]]; then
-      install_package 64 ${KODI_NEEDED_PACKAGE}
-      protect_package 64 ${KODI_NEEDED_PACKAGE}
-    fi
-  done <kodi_needed_dev_packages.txt
-fi
-
+# Anything the purge above took with it comes back here. upstream skipped
+# ffmpeg on rk3566 and held it, for its own ffmpeg build (build_ffmpeg.sh),
+# which dArkMoss does not run: Debian's ffmpeg is the one in the image.
 while read NEEDED_PACKAGE; do
-  if [[ ! "$NEEDED_PACKAGE" =~ ^# ]]; then
-    if [[ "$CHIPSET" != *"3566"* ]]; then
-      install_package 64 ${NEEDED_PACKAGE}
-      protect_package 64 ${NEEDED_PACKAGE}
-    else
-      if [[ "$NEEDED_PACKAGE" != "ffmpeg" ]]; then
-        install_package 64 ${NEEDED_PACKAGE}
-        protect_package 64 ${NEEDED_PACKAGE}
-      else
-        continue
-      fi
-    fi 
+  if [[ -n "$NEEDED_PACKAGE" ]] && [[ ! "$NEEDED_PACKAGE" =~ ^# ]]; then
+    install_package 64 ${NEEDED_PACKAGE}
+    protect_package 64 ${NEEDED_PACKAGE}
   fi
 done <needed_packages.txt
 sync
 
 if [[ "$BUILD_BLUEALSA" == "y" ]]; then
   while read BLUETOOTH_NEEDED_PACKAGE; do
-    if [[ ! "$BLUETOOTH_NEEDED_PACKAGE" =~ ^# ]]; then
+    if [[ -n "$BLUETOOTH_NEEDED_PACKAGE" ]] && [[ ! "$BLUETOOTH_NEEDED_PACKAGE" =~ ^# ]]; then
       install_package 64 ${BLUETOOTH_NEEDED_PACKAGE}
       protect_package 64 ${BLUETOOTH_NEEDED_PACKAGE}
     fi
@@ -233,9 +170,10 @@ if [[ "${BUILD_ARMHF}" == "y" ]]; then
 fi
 # Ensure sdl2-config is linked to the proper version
 call_chroot "ln -sfv /usr/lib/aarch64-linux-gnu/bin/sdl2-config /usr/bin/sdl2-config"
-# Ensure sdl-image is symlinked properly
-call_chroot "rm /lib/libSDL_image-1.2.so.0"
-call_chroot "cd /lib && ln -sf $(find /lib/ -name libSDL_image-1.2.so.0.* | head -n 1) /lib/libSDL_image-1.2.so.0"
+# Upstream re-pointed /lib/libSDL_image-1.2.so.0 here, but the $(find) in that
+# line ran on the build host, not in the chroot, and SDL_image 1.2 is not
+# installed: it left "ln -sf /lib/libSDL_image-1.2.so.0", a symlink to itself.
+call_chroot "rm -f /lib/libSDL_image-1.2.so.0"
 call_chroot "ldconfig -X"
 
 if grep -qs "Arkbuild/home/ark/Arkbuild_ccache" /proc/mounts; then

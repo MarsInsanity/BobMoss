@@ -27,6 +27,16 @@ The tag `g80ca` and the branch `g80ca` share a name, so name the branch in
 full where git could take either: `git push origin HEAD:refs/heads/g80ca`,
 and `refs/heads/g80ca` as the ref when starting a workflow by hand.
 
+## moss-lite
+
+Branch `moss-lite` is this repository slimmed down to what spruce needs from
+the base (see "What goes on the image" in [README.md](README.md)): dArkOS's
+emulator, EmulationStation and Kodi builds and the non-spruce units are gone,
+and the build-only packages are purged from the image. Unlike `g80ca` it edits
+upstream's files, so merging upstream into it conflicts where upstream changed
+something moss-lite removed; keep the removal. The clone's patches below still
+apply to it (`build_r36sclone.sh` checks).
+
 ## How the clone stays out of upstream's files
 
 Apart from two registrations CI needs (`r36sclone` in `.github/units.txt` and

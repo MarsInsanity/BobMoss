@@ -138,7 +138,7 @@ done
 sudo chroot Arkbuild/ ldconfig -X
 
 # Install meson
-sudo chroot ${CHROOT_DIR}/ bash -c "git clone https://github.com/mesonbuild/meson.git && ln -s /meson/meson.py /usr/bin/meson"
+sudo chroot ${CHROOT_DIR}/ bash -c "git clone --depth 1 https://github.com/mesonbuild/meson.git && ln -s /meson/meson.py /usr/bin/meson"
 
 # Build and install librga
 sudo chroot ${CHROOT_DIR}/ bash -c "cd /home/ark &&
