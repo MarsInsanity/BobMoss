@@ -104,15 +104,11 @@ fi
 echo "$NAME" | sudo tee Arkbuild/etc/hostname
 echo -e "# This host address\n127.0.1.1\t${NAME}" | sudo tee -a Arkbuild/etc/hosts
 
-# Copy the necessary .asoundrc file for proper audio in emulationstation and emulators
+# Copy the necessary .asoundrc file for proper audio in spruce, RetroArch and the emulators
 sudo cp audio/.asoundrc Arkbuild/home/ark/.asoundrc
 sudo cp audio/.asoundrcbak Arkbuild/home/ark/.asoundrcbak
 sudo chroot Arkbuild/ bash -c "chown ark:ark /home/ark/.asoundrc*"
 sudo chroot Arkbuild/ bash -c "ln -sfv /home/ark/.asoundrc /etc/asound.conf"
-sudo chroot Arkbuild/ bash -c "cp -fv /usr/share/alsa/alsa.conf /usr/share/alsa/alsa.conf.mednafen"
-sudo chroot Arkbuild/ bash -c "sed -i '/\"\~\/.asoundrc\"/s//\"\~\/.asoundrc.mednafen\"/' /usr/share/alsa/alsa.conf.mednafen"
-sudo chroot Arkbuild/ bash -c "cp -fv /usr/share/alsa/alsa.conf /usr/share/alsa/alsa.conf.gametank"
-sudo chroot Arkbuild/ bash -c "sed -i '/\"\~\/.asoundrc\"/s//\"\~\/.asoundrc.gametank\"/' /usr/share/alsa/alsa.conf.gametank"
 
 # Sleep script
 sudo mkdir -p Arkbuild/usr/lib/systemd/system-sleep
@@ -143,9 +139,6 @@ sudo cp hotkeydaemon/killer_daemon.service Arkbuild/etc/systemd/system/killer_da
 sudo cp hotkeydaemon/killer_daemon.py Arkbuild/usr/local/bin/killer_daemon.py
 sudo chmod 777 Arkbuild/usr/local/bin/killer_daemon.py
 sudo chroot Arkbuild/ bash -c "systemctl disable killer_daemon"
-
-# Add amiga script
-sudo cp amiga/amiga.sh Arkbuild/usr/local/bin/
 
 #Generate the post-firstboot fstab. No /roms line: mount-spruce.sh mounts spruce.
 if [ "$ROOT_FILESYSTEM_FORMAT" == "btrfs" ]; then
@@ -297,13 +290,11 @@ sudo cp scripts/finish.sh.qm Arkbuild/usr/local/bin/
 sudo cp scripts/pause.sh.qm Arkbuild/usr/local/bin/
 sudo cp scripts/finish.sh Arkbuild/usr/local/bin/finish.sh.orig
 sudo cp scripts/pause.sh Arkbuild/usr/local/bin/pause.sh.orig
-sudo cp scripts/speak_bat_life.sh Arkbuild/usr/local/bin/
 sudo cp scripts/spktoggle.sh Arkbuild/usr/local/bin/
 sudo cp scripts/timezones Arkbuild/usr/local/bin/
 sudo cp scripts/BaRT_QuickMode.sh Arkbuild/usr/local/bin/
 sudo cp scripts/"Enable Quick Mode".sh Arkbuild/usr/local/bin/
 sudo cp scripts/"Disable Quick Mode".sh Arkbuild/usr/local/bin/
-sudo cp scripts/arkos_ap_mode.sh Arkbuild/usr/local/bin/
 sudo cp scripts/auto_suspend* Arkbuild/usr/local/bin/
 sudo cp scripts/processcheck.sh Arkbuild/usr/local/bin/
 sudo cp scripts/autosuspend.service Arkbuild/etc/systemd/system/
@@ -312,24 +303,12 @@ sudo chroot Arkbuild/ bash -c "systemctl disable autosuspend"
 sudo cp scripts/wifi_importer.service Arkbuild/etc/systemd/system/
 sudo chroot Arkbuild/ bash -c "systemctl enable wifi_importer"
 sudo cp scripts/keystroke.py Arkbuild/usr/local/bin/
-sudo cp scripts/b2.sh Arkbuild/usr/local/bin/
-sudo cp scripts/freej2me.sh Arkbuild/usr/local/bin/
 sudo cp scripts/easyrpg.sh Arkbuild/usr/local/bin/
 sudo cp scripts/get_last_played.sh Arkbuild/usr/local/bin/
-sudo cp scripts/gx4000.sh Arkbuild/usr/local/bin/
 sudo cp scripts/isitpng.sh Arkbuild/usr/local/bin/
-sudo cp scripts/neogeocd.sh Arkbuild/usr/local/bin/
-sudo cp scripts/netplay.sh Arkbuild/usr/local/bin/
-sudo mkdir -p Arkbuild/etc/hostapd
-sudo cp hostapd/hostapd.conf Arkbuild/etc/hostapd/
-sudo cp dnsmasq/dnsmasq.conf Arkbuild/etc/
 sudo cp scripts/sleep_governors.sh Arkbuild/usr/local/bin/
 sudo cp scripts/wasitpng.sh Arkbuild/usr/local/bin/
 sudo cp global/* Arkbuild/usr/local/bin/
-# Disable winbind as connectivity to Active Directory is not needed
-sudo chroot Arkbuild/ bash -c "systemctl disable winbind"
-# Disable samba-ad-dc as connectivity to Active Directory is not needed as well as some other services
-sudo chroot Arkbuild/ bash -c "systemctl disable samba-ad-dc dnsmasq hostapd"
 # Disable e2scrub_reap if ext file system is not being used for rootfs
 if [ "$ROOT_FILESYSTEM_FORMAT" == "xfs" ] || [ "$ROOT_FILESYSTEM_FORMAT" == "btrfs" ]; then
   sudo chroot Arkbuild/ bash -c "systemctl disable e2scrub_reap"
@@ -368,23 +347,6 @@ fi
 # Make all scripts in /usr/local/bin executable, world style
 sudo chmod 777 Arkbuild/usr/local/bin/*
 
-# Link themes folder to /roms/themes and clone some themes to the folder
-sudo rm -rf Arkbuild/etc/emulationstation/themes/
-sudo chroot Arkbuild/ bash -c "ln -sfv /roms/themes/ /etc/emulationstation/themes"
-
-# Also expose /roms2/themes via the user themes path so ES picks up themes
-# from the second SD card in SD2-for-Roms mode (dangles harmlessly otherwise).
-if [[ "$UNIT" != *"rgb10"* ]] && [[ "$UNIT" != "v10" ]] && [[ "$UNIT" != "rk2020" ]] && [[ "$UNIT" != *"oga"* ]]; then
-  sudo chroot Arkbuild/ bash -c "ln -sfv /roms2/themes/ /home/ark/.emulationstation/themes"
-fi
-
-# Link music folder to /roms/bgmusic
-sudo rm -rf Arkbuild/home/ark/.emulationstation/music
-sudo chroot Arkbuild/ bash -c "ln -sfv /roms/bgmusic/ /home/ark/.emulationstation/music"
-
-# Set launchimage to PIC mode
-sudo chroot Arkbuild/ touch /home/ark/.config/.GameLoadingIModePIC
-
 # Set default volume
 sudo cp audio/asound.state.${CHIPSET} Arkbuild/var/local/asound.state
 
@@ -394,59 +356,6 @@ echo "export SDL_VIDEO_EGL_DRIVER=libEGL.so" | sudo tee Arkbuild/etc/profile.d/S
 # Set device name 
 dNAME=`echo $NAME | tr '[:lower:]' '[:upper:]'`
 echo "$dNAME" | sudo tee Arkbuild/home/ark/.config/.DEVICE
-
-# Configure default samba share setup
-cat <<EOF | sudo tee -a Arkbuild/etc/samba/smb.conf
-[roms]
-   comment = ROMS
-   path = /roms
-   browsable = yes
-   read only = no
-   map archive = no
-   map system = no
-   map hidden = no
-   guest ok = yes
-   read list = guest
-
-[opt]
-   comment = OPT
-   path = /opt
-   browsable = yes
-   read only = no
-   map archive = no
-   map system = no
-   map hidden = no
-   guest ok = yes
-   read list = guest
-
-[ark]
-   comment = ark
-   path = /home/ark
-   browsable = yes
-   read only = no
-   map archive = no
-   map system = no
-   map hidden = no
-   guest ok = yes
-   read list = guest
-EOF
-if [[ "$UNIT" != *"rgb10"* ]] && [[ "$UNIT" != "v10" ]] && [[ "$UNIT" != "rk2020" ]] && [[ "$UNIT" != *"oga"* ]]; then
-  cat <<EOF | sudo tee -a Arkbuild/etc/samba/smb.conf
-[roms2]
-   comment = ROMS2
-   path = /roms2
-   browsable = yes
-   read only = no
-   map archive = no
-   map system = no
-   map hidden = no
-   guest ok = yes
-   read list = guest
-EOF
-  fi
-
-sudo chroot Arkbuild/ bash -c "systemctl disable smbd"
-sudo chroot Arkbuild/ bash -c "systemctl disable nmbd"
 
 # Set distro identification and version
 sudo mkdir -p Arkbuild/usr/share/plymouth/themes/
