@@ -1,4 +1,4 @@
-From 6f875a4a0d18736d36e12148da14bfe2d436dd55 Mon Sep 17 00:00:00 2001
+From ce67e6254dc98b1094da9e732434c7eeba524400 Mon Sep 17 00:00:00 2001
 From: dArkMoss <dArkMoss@localhost>
 Date: Thu, 29 Oct 2026 06:11:01 +0000
 Subject: [PATCH 2/2] Input: odroidgo3-joypad: lcdyk0517's clone driver

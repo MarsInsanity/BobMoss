@@ -102,6 +102,12 @@ driver and button codes. Nothing on the spruce card changes.
   on (wired adb) or off (WiFi dongle). The boot line carries
   `usbcore.autosuspend=-1`: with autosuspend on, a dongle plugged in after
   boot is not detected.
+- Blue LED as "rumble": the G80CA has no rumble motor, so the blue front
+  LED (gpio0 PA0) is the joypad's `rumble-gpio`. It lights while a rumble
+  effect plays: spruce's vibrate (entering the Game Switcher, held
+  power/menu buttons, the low-battery warning) and game rumble, as spruce
+  blinks the LED on the MagicX Zero 28. It also lights for a second when
+  the joypad starts at boot. spruce's rumble intensity "Off" turns it off.
 - Headphones: `hpjackd` sets the rk817 Playback Path to HP while the jack
   switch is on and SPK while it is off. The dts reads the detect pin active
   high, as on the unit this branch is for (dArkOSRE's 20250422 dtb; its
