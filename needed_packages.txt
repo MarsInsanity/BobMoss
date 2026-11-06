@@ -9,6 +9,7 @@
 # (cloud-guest-utils) expand the card on first boot.
 bsdextrautils
 btrfs-progs
+ca-certificates
 cloud-guest-utils
 console-setup
 cron
@@ -25,6 +26,7 @@ pv
 rsync
 systemd-timesyncd
 tar
+tzdata
 unzip
 wget
 xfsprogs
