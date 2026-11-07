@@ -86,7 +86,8 @@ jobs:
       - name: Checksums
         run: |
           shopt -s nullglob
-          imgs=( *.img.7z* ); upd=( *.dmupd ); apk=( Boot2SpruceOS.apk )
+          # A pattern, so a missing app (download failed) drops out of the list.
+          imgs=( *.img.7z* ); upd=( *.dmupd ); apk=( Boot2SpruceOS*.apk )
           [ ${#imgs[@]} -gt 0 ] || { echo "::error::no RG552 image was produced"; exit 1; }
           [ ${#upd[@]} -gt 0 ] || { echo "::error::no RG552 update payload was produced"; exit 1; }
           sha256sum "${imgs[@]}" "${upd[@]}" "${apk[@]}" > SHA256SUMS
