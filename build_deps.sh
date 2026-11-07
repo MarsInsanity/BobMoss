@@ -37,7 +37,11 @@ DEPS_CACHE_ASSET="chroot-deps-${CHIPSET}-${BIT}-${DEPS_CACHE_KEY}.tar.zst"
 DEPS_FROM_CACHE=n
 
 if [ "$BIT" == "64" ] && bc_fetch "$DEPS_CACHE_ASSET" "chroot-deps.tar.zst"; then
-  if sudo tar --zstd -xf chroot-deps.tar.zst --exclude="${CHROOT_DIR}/usr/local/bin/rgb30dtbs"; then
+  # The kernel's module tree is build_kernel's (it ran first): never let a
+  # snapshot written by another unit's build replace it. Both spellings, as
+  # the rootfs is merged-/usr and lib/ is only a link to usr/lib.
+  if sudo tar --zstd -xf chroot-deps.tar.zst --exclude="${CHROOT_DIR}/usr/local/bin/rgb30dtbs" \
+        --exclude="${CHROOT_DIR}/lib/modules" --exclude="${CHROOT_DIR}/usr/lib/modules"; then
     DEPS_FROM_CACHE=y
     echo "Prepared chroot restored from build cache; skipping package install and in-chroot builds."
   else
@@ -173,6 +177,7 @@ if [ "$BIT" == "64" ]; then
   if sudo tar --zstd -cf chroot-deps.tar.zst \
         --one-file-system \
         --exclude="${CHROOT_DIR}/lib/modules" \
+        --exclude="${CHROOT_DIR}/usr/lib/modules" \
         --exclude="${CHROOT_DIR}/lib/firmware" \
         --exclude="${CHROOT_DIR}/usr/lib/firmware" \
         --exclude="${CHROOT_DIR}/home/ark/Arkbuild_ccache" \
