@@ -63,6 +63,8 @@ jobs:
   apk:
     needs: check
     uses: ./.github/workflows/build-rg552-android.yaml
+    # The APK signing key (RG552_APK_KEYSTORE and friends).
+    secrets: inherit
 
   publish:
     needs: [check, image, apk]

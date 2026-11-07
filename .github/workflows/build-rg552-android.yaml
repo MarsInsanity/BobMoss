@@ -34,14 +34,31 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Signed with the key in the RG552_APK_KEYSTORE secret (base64 of a
+      # keystore; RG552_APK_KEYSTORE_PASS its password, RG552_APK_KEY_ALIAS its
+      # alias, default rg552), so a new build installs over the previous one.
+      # Without it, build.sh signs with a throwaway key and every install needs
+      # the old app uninstalled first. The version code is minutes since the
+      # epoch: it only goes up, whether built here or by build-rg552.yaml.
       - name: Build the APK
         env:
-          VERSION_NAME: "1.0.${{ github.run_number }}"
-          VERSION_CODE: "${{ github.run_number }}"
+          APK_KEYSTORE_B64: ${{ secrets.RG552_APK_KEYSTORE }}
+          KEYSTORE_PASS: ${{ secrets.RG552_APK_KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.RG552_APK_KEY_ALIAS || 'rg552' }}
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
+          if [ -n "$APK_KEYSTORE_B64" ]; then
+            printf '%s' "$APK_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/rg552.keystore"
+            export KEYSTORE="$RUNNER_TEMP/rg552.keystore"
+          else
+            echo "::warning::No RG552_APK_KEYSTORE secret: signed with a throwaway key, so it will not install over an earlier build"
+            unset KEYSTORE_PASS KEY_ALIAS
+          fi
+          export VERSION_CODE="$(( $(date -u +%s) / 60 ))"
+          export VERSION_NAME="1.$(date -u +%Y%m%d.%H%M)"
           android/rg552-bootswitch/build.sh "$PWD/RG552BootSwitch.apk"
+          rm -f "$RUNNER_TEMP/rg552.keystore"
 
       - uses: actions/upload-artifact@v4
         with:

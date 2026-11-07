@@ -59,3 +59,22 @@ No Gradle: `build.sh` drives aapt2, javac, d8, zipalign and apksigner directly.
 Set `KEYSTORE`, `KEYSTORE_PASS` and `KEY_ALIAS` to sign with your own key;
 otherwise a throwaway key is generated, so an update built elsewhere has to be
 installed over an uninstall.
+
+## Signing key (so updates install over the previous app)
+
+Android only installs an update over an app signed with the same key. The
+workflow signs with the keystore in the repository secret `RG552_APK_KEYSTORE`
+(base64), password `RG552_APK_KEYSTORE_PASS`, alias `RG552_APK_KEY_ALIAS`
+(optional, default `rg552`); without the secret it falls back to a throwaway
+key and warns. To create it once, on any PC with a JDK and the GitHub CLI:
+
+    keytool -genkeypair -keystore rg552.keystore -alias rg552 -keyalg RSA \
+      -keysize 2048 -validity 10000 -dname "CN=dArkMoss RG552"
+    base64 -w0 rg552.keystore | gh secret set RG552_APK_KEYSTORE -R MarsInsanity/BobMoss
+    gh secret set RG552_APK_KEYSTORE_PASS -R MarsInsanity/BobMoss
+
+(keytool asks for the password; give the same one to the second `gh secret
+set`.) Keep `rg552.keystore` somewhere safe: an app signed with a different
+key cannot update this one. The first build signed with it still needs the old
+app uninstalled once. Version codes are minutes since the epoch, so every
+build is newer than the last.
