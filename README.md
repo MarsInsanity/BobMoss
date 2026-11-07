@@ -127,7 +127,7 @@ and the RGA-rotated SDL2 from `rk3326_core_builds` (`CORE_BUILDS_CHIPSET` in
   not in `.github/units.txt`). To build, change the version in
   `.github/rg552-version` on the `rg552` branch (or run the workflow by hand
   once it has run). The newest build is always the release tagged
-  `RG552`, with the image, the update payload and `RG552BootSwitch.apk`; each
+  `RG552`, with the image, the update payload and a copy of `Boot2SpruceOS.apk`; each
   new build first moves the previous one to `rg552-<date built>`. The RG552
   release is never marked latest, so the other units' update checks are
   unaffected.
@@ -136,6 +136,8 @@ and the RGA-rotated SDL2 from `rk3326_core_builds` (`CORE_BUILDS_CHIPSET` in
   each U-Boot and trust copy) into the unused sectors from 40 of TF1 and blanks
   them, so the next boot falls through to Android; `rg552-bootswitch linux`
   copies them back. The Android side is the
-  "SpruceOS" app in `android/rg552-bootswitch/` (`RG552BootSwitch.apk`, needs
-  root; press A to boot into spruce), and the same script is on the card's FAT
-  partition for recovery from a PC.
+  "SpruceOS" app (`Boot2SpruceOS.apk`, needs root; press A to boot into
+  spruce), built and released in
+  [MarsInsanity/Boot2SpruceOS](https://github.com/MarsInsanity/Boot2SpruceOS)
+  (branch `rg552`), which bundles this script from `scripts/rg552/`. The same
+  script is on the card's FAT partition for recovery from a PC.

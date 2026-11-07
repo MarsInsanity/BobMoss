@@ -1,5 +1,6 @@
-# Builds the Anbernic RG552 image and its Android Boot Switch app and publishes
-# them as the release tagged "RG552".
+# Builds the Anbernic RG552 image and publishes it as the release tagged
+# "RG552", with a copy of the newest Boot2SpruceOS.apk, the RG552's Android app
+# (built and released in MarsInsanity/Boot2SpruceOS, branch rg552).
 #
 # This fork builds several handhelds, so an installer can take the RG552 build
 # from the one fixed tag "RG552", which always holds the newest RG552 build.
@@ -60,14 +61,8 @@ jobs:
       unit: rg552
       version: ${{ needs.check.outputs.version }}
 
-  apk:
-    needs: check
-    uses: ./.github/workflows/build-rg552-android.yaml
-    # The APK signing key (RG552_APK_KEYSTORE and friends).
-    secrets: inherit
-
   publish:
-    needs: [check, image, apk]
+    needs: [check, image]
     runs-on: ubuntu-24.04
     steps:
       - name: Collect the image
@@ -75,20 +70,27 @@ jobs:
         with:
           name: dArkMoss-rg552
 
-      - name: Collect the APK
-        uses: actions/download-artifact@v4
-        with:
-          name: RG552BootSwitch
+      # The Android app is built and released in MarsInsanity/Boot2SpruceOS,
+      # whose release RG552 always holds its newest build; a copy rides along
+      # with the image. Without it the image is published on its own.
+      - name: Collect the Android app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download RG552 --repo MarsInsanity/Boot2SpruceOS --pattern Boot2SpruceOS.apk; then
+            ls -l Boot2SpruceOS.apk
+          else
+            echo "::warning::could not download Boot2SpruceOS.apk (MarsInsanity/Boot2SpruceOS, release RG552); publishing without it"
+          fi
 
       - name: Checksums
         run: |
           shopt -s nullglob
-          imgs=( *.img.7z* ); upd=( *.dmupd )
+          imgs=( *.img.7z* ); upd=( *.dmupd ); apk=( Boot2SpruceOS.apk )
           [ ${#imgs[@]} -gt 0 ] || { echo "::error::no RG552 image was produced"; exit 1; }
           [ ${#upd[@]} -gt 0 ] || { echo "::error::no RG552 update payload was produced"; exit 1; }
-          [ -f RG552BootSwitch.apk ] || { echo "::error::no RG552BootSwitch.apk was produced"; exit 1; }
-          sha256sum *.img.7z* *.dmupd RG552BootSwitch.apk > SHA256SUMS
-          ls -lh *.img.7z* *.dmupd RG552BootSwitch.apk SHA256SUMS
+          sha256sum "${imgs[@]}" "${upd[@]}" "${apk[@]}" > SHA256SUMS
+          ls -lh "${imgs[@]}" "${upd[@]}" "${apk[@]}" SHA256SUMS
 
       # Tags go through RELEASE_TOKEN (repository secret: a fine-grained token
       # with Contents and Workflows write on this repo). The workflow token is
@@ -157,15 +159,16 @@ jobs:
           - \`dArkMoss_RG552_*.img.7z.001\` + \`.002\`: the TF1 card image (a plain byte
             split: \`cat\` them, or let 7-Zip open \`.001\`). spruce goes on TF2.
           - \`dArkMoss_RG552_*.dmupd\`: in-place update payload.
-          - \`RG552BootSwitch.apk\`: the "SpruceOS" Android app (needs root): press
-            A to boot back into spruce after spruce's "Boot to Android". Each
-            build is signed with a new key: uninstall the previous copy (or the
-            older "RG552 Boot Switch") before installing it.
+          - \`Boot2SpruceOS.apk\`: the "SpruceOS" Android app (needs root): press A
+            to boot back into spruce after spruce's "Boot to Android". A copy of
+            the newest build from https://github.com/MarsInsanity/Boot2SpruceOS
+            (release RG552), where its own releases and source are.
 
           The tag \`RG552\` always holds the newest RG552 build; older builds are
           kept as \`rg552-<date built>\`.
           EOF
-          gh release create RG552 *.img.7z* *.dmupd RG552BootSwitch.apk SHA256SUMS \
+          shopt -s nullglob
+          gh release create RG552 *.img.7z* *.dmupd Boot2SpruceOS*.apk SHA256SUMS \
             --repo "$REPO" \
             --target "$GITHUB_SHA" \
             --title "dArkMoss RG552 ${VERSION}" \
