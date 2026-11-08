@@ -1,7 +1,7 @@
 {
   "spruceUI/dArkMoss": {
     "branch": "spruce",
-    "commit": "d9b12b0b322fcd7467b1bfe4f11b6bff818154fb"
+    "commit": "dc8e4b8bc0d53928c07eedf3f53c7149cf1ab8e6"
   },
   "lcdyk0517/arkos4clone": {
     "branch": "main",
@@ -14,12 +14,12 @@
   },
   "spruceUI/spruceOS": {
     "branch": "Development",
-    "commit": "837fe36fbd5cb704269df486ea861b5c14463aeb",
-    "latest_release": "v4.5.6"
+    "commit": "bec3546e8047b626fed238b1778787a0a4d0db3f",
+    "latest_release": "v4.6.0"
   },
   "spruceUI/spruceOSNightlies": {
     "branch": "main",
     "commit": "72dfe2425c3874a3561f36115b4b2d3c9f269365",
-    "latest_release": "v4.5.7-20261107.2"
+    "latest_release": "v4.6.1-20261108.2"
   }
 }
