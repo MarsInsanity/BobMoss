@@ -69,6 +69,7 @@ Units:
 | v10 | Powkiddy V10 (RK3326) | `make v10` | `build_v10.sh` |
 | rg351p | Anbernic RG351P (RK3326) | `make rg351p` | `build_rg351p.sh` |
 | xumini | MagicX XU Mini M (RK3326) | `make xumini` | `build_xumini.sh` |
+| e5plus | GameMT E5 Plus (RK3566) | `make e5plus` | `build_e5plus.sh` |
 
 Images are built on GitHub Actions, not locally. Under Actions:
 

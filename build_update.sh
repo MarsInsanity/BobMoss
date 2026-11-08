@@ -27,6 +27,7 @@ case "$UNIT" in
   v10)       DMUPD_PLATFORM="V10" ;;
   rg351p)    DMUPD_PLATFORM="RG351P" ;;
   xumini)    DMUPD_PLATFORM="XUMiniM" ;;
+  e5plus)    DMUPD_PLATFORM="E5Plus" ;;
   *)         DMUPD_PLATFORM="" ;;
 esac
 
