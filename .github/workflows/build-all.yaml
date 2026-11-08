@@ -96,6 +96,12 @@ jobs:
         if: ${{ contains(needs.plan.outputs.units, '"v10"') || contains(needs.plan.outputs.units, '"rg351p"') }}
         env:
           OVERLAY_REPO: ${{ github.repository_owner }}/spruceOS
+          # The unit's files are what its branch adds over spruce itself, so the
+          # base is spruceUI's Development, not the fork's own copy of it: a fork
+          # rarely keeps that branch current, and a stale one put hundreds of
+          # unrelated, older spruce files in the overlay (256 files, 44 MB, for
+          # the RG351P's 23).
+          SPRUCE_UPSTREAM: spruceUI/spruceOS
           UNITS: ${{ needs.plan.outputs.units }}
         run: |
           for unit in v10 rg351p; do
@@ -110,7 +116,7 @@ jobs:
             GIT_LFS_SKIP_SMUDGE=1 git clone -q --filter=blob:none --no-checkout -b "$unit" "https://github.com/${OVERLAY_REPO}" spruce-src
             (
               cd spruce-src
-              git fetch -q origin Development
+              git fetch -q "https://github.com/${SPRUCE_UPSTREAM}" Development
               base="$(git merge-base FETCH_HEAD HEAD)"
               git diff --name-only --diff-filter=ACMR "$base" HEAD > "../overlay-files-${unit}.txt"
               [ -s "../overlay-files-${unit}.txt" ] || { echo "::error::no ${UNIT_UC} files on ${OVERLAY_REPO} ${unit}"; exit 1; }
