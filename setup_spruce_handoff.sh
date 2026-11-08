@@ -17,6 +17,15 @@ sudo chmod 0755 Arkbuild/usr/local/sbin/mount-spruce.sh
 sudo cp scripts/spruce/console-blank.sh Arkbuild/usr/local/sbin/console-blank.sh
 sudo chmod 0755 Arkbuild/usr/local/sbin/console-blank.sh
 sudo cp scripts/spruce/spruce-launch.service Arkbuild/etc/systemd/system/spruce-launch.service
+# Opt-in: units whose power-off stalls with fbcon unbound bind it again at the very end of the
+# shutdown, from a system-shutdown hook, so nothing on screen changes before the power cut.
+case "$UNIT" in
+  g350)
+    sudo mkdir -p Arkbuild/usr/lib/systemd/system-shutdown
+    sudo cp scripts/spruce/fbcon-restore Arkbuild/usr/lib/systemd/system-shutdown/fbcon-restore
+    sudo chmod 0755 Arkbuild/usr/lib/systemd/system-shutdown/fbcon-restore
+    ;;
+esac
 
 # spruce expects the card at /mnt/SDCARD; mount-spruce.sh mounts TF2 there.
 sudo mkdir -p Arkbuild/mnt/SDCARD
@@ -157,6 +166,7 @@ case "$UNIT" in
   g350)      HW_DEVICE_NAME="G350" ;;
   v10)       HW_DEVICE_NAME="Powkiddy V10" ;;
   xumini)    HW_DEVICE_NAME="XU Mini M" ;;
+  e5plus)    HW_DEVICE_NAME="GameMT E5 Plus" ;;
   # harbourmaster's pattern_to_device has "anbernic rg552": 1920x1152, rk3399.
   rg552)     HW_DEVICE_NAME="Anbernic RG552" ;;
   *)         HW_DEVICE_NAME="" ;;
@@ -176,6 +186,7 @@ case "$UNIT" in
   g350)      SPRUCE_PLATFORM_NAME="G350" ;;
   v10)       SPRUCE_PLATFORM_NAME="V10" ;;
   xumini)    SPRUCE_PLATFORM_NAME="XUMiniM" ;;
+  e5plus)    SPRUCE_PLATFORM_NAME="E5Plus" ;;
   rg552)     SPRUCE_PLATFORM_NAME="RG552" ;;
   *)         SPRUCE_PLATFORM_NAME="" ;;
 esac
