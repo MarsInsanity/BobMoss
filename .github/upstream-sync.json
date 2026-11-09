@@ -14,12 +14,12 @@
   },
   "spruceUI/spruceOS": {
     "branch": "Development",
-    "commit": "bec3546e8047b626fed238b1778787a0a4d0db3f",
+    "commit": "8390ae0c3a52ce692af7a9c1ce24fd8e03be4ed5",
     "latest_release": "v4.6.0"
   },
   "spruceUI/spruceOSNightlies": {
     "branch": "main",
     "commit": "72dfe2425c3874a3561f36115b4b2d3c9f269365",
-    "latest_release": "v4.6.1-20261108.2"
+    "latest_release": "v4.6.1-20261109"
   }
 }
