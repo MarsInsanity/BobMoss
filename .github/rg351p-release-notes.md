@@ -3,7 +3,7 @@
 
 The RG351P has one SD slot, so dArkMoss and spruce share the same card. A card bigger than about 12 GB is needed: dArkMoss keeps 11 GB, spruce gets the rest.
 
-1. **Download** both image parts below (`dArkMoss_RG351P_..._img.7z.001` and `.002`) into the same folder.
+1. **Download** the image below (`dArkMoss_RG351P_..._img.7z.001`). If there is also a `.002` part, download it into the same folder.
 2. **Unpack** with [7-Zip](https://www.7-zip.org/download.html): right-click the `.001` file and choose *Extract Here*. You get one `.img` file.
 3. **Flash** the `.img` to your SD card with [balenaEtcher](https://etcher.balena.io/) or Raspberry Pi Imager. This erases the card. If Windows asks to format the disk afterwards, click *Cancel*.
 4. **First boot:** put the card in the RG351P and turn it on. It sets up the card and makes a **SPRUCEOS** partition (a few minutes), then shows *spruce card not found* and turns off. That is expected.
