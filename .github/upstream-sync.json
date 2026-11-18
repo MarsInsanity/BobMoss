@@ -5,21 +5,21 @@
   },
   "lcdyk0517/arkos4clone": {
     "branch": "main",
-    "commit": "2656e5b6c063dd16badd1f7642752f0b280dbdd3",
+    "commit": "4abb34366bb76b93e846fb3040c2511304badf9b",
     "latest_tag": "20261008"
   },
   "lcdyk0517/arkos.bsp.4.4": {
     "branch": "rg351",
-    "commit": "923a6105701d"
+    "commit": "46a26a68fa30"
   },
   "spruceUI/spruceOS": {
     "branch": "Development",
-    "commit": "065ab10a77ef665b09e1767b2cc23d19662bb896",
+    "commit": "7853d37e7f3a35548a810a3e4a5d592984d0d3cb",
     "latest_release": "v4.6.0"
   },
   "spruceUI/spruceOSNightlies": {
     "branch": "main",
     "commit": "72dfe2425c3874a3561f36115b4b2d3c9f269365",
-    "latest_release": "v4.6.1-20261117"
+    "latest_release": "v4.6.1-20261118.3"
   }
 }
