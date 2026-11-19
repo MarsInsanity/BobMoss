@@ -30,7 +30,9 @@ permissions:
   contents: write
 
 # Device branch (rg351p) only: its runs would race the archive and create steps
-# over the one release tag, so queue them. Every other branch gets a unique
+# over the one release tag, so they run one at a time. GitHub keeps at most one
+# pending run per group: a run waiting behind another is replaced (cancelled) by
+# any newer dispatch, so dispatch one build at a time. Every other branch gets a unique
 # group per run, i.e. no concurrency limit, exactly as upstream. env is not
 # available here, so the branch name is written literally.
 concurrency:
@@ -88,8 +90,10 @@ jobs:
           if [ -z "$UNITS" ]; then
             case " $DEVICE_BRANCHES " in *" $GITHUB_REF_NAME "*) UNITS="$GITHUB_REF_NAME" ;; esac
           fi
+          # Other branches: every unit except the device-branch ones, so their
+          # default builds are unchanged by a device branch's unit being listed.
           if [ -z "$UNITS" ]; then
-            UNITS="$(grep -v '^\s*$' .github/units.txt | paste -sd,)"
+            UNITS="$(grep -v '^\s*$' .github/units.txt | grep -vx -F -f <(tr ' ' '\n' <<<"$DEVICE_BRANCHES") | paste -sd,)"
           fi
           json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<<"$UNITS")"
           for u in $(jq -r '.[]' <<<"$json"); do
