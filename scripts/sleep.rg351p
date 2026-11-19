@@ -1,0 +1,54 @@
+#!/bin/bash
+# RG351P system-sleep hook, installed over sleep.rk3326 for this unit only.
+#
+# sleep.rk3326 unloads dwc2 before every suspend and reloads it on resume
+# ("workaround until dwc2 is fixed", from the OGA). On the RG351P the only
+# thing on that USB port is the internal pad, so the cycle unplugs and
+# re-plugs the controls on every wake: RetroArch and PPSSPP pick the pad up
+# again, but programs that open it once at start (vtree, Songo's Godot
+# runtime, most SDL apps) keep a dead device and lose their controls.
+#
+# Keep dwc2 loaded through the suspend. If the pad is not back within a few
+# seconds of resume (the bus did not survive), do the old unload/reload, so
+# the worst case is the old behaviour.
+
+pad_present() {
+	local d
+	for d in /sys/bus/usb/devices/*; do
+		[ "$(cat "$d/idVendor" 2>/dev/null)" = "1209" ] &&
+			[ "$(cat "$d/idProduct" 2>/dev/null)" = "3100" ] || continue
+		# and its input node, so the HID side answered too
+		grep -qs "OSH PB Controller" /sys/class/input/event*/device/name && return 0
+	done
+	return 1
+}
+
+case $1 in
+	pre)
+		# Blank screen so it seems like sleep enters quicker than it really does
+		cat /sys/devices/platform/backlight/backlight/backlight/brightness > /var/local/cur_bright.state
+		echo 0 > /sys/devices/platform/backlight/backlight/backlight/brightness
+		/usr/sbin/alsactl store -f /var/local/asound.state
+		if [ -f "/usr/local/bin/quickmode.sh" ]; then
+			touch /dev/shm/.JUSTWOKEUP
+		fi
+		;;
+	post)
+		cat /var/local/cur_bright.state > /sys/devices/platform/backlight/backlight/backlight/brightness
+		/usr/sbin/alsactl restore -f /var/local/asound.state
+		n=0
+		until pad_present; do
+			n=$((n + 1))
+			if [ "$n" -ge 16 ]; then
+				logger -t rg351p-sleep "pad not back 4 s after resume, reloading dwc2"
+				modprobe -r dwc2
+				modprobe -i dwc2
+				sleep 2
+				break
+			fi
+			sleep 0.25
+		done
+		systemctl is-active --quiet killer_daemon && systemctl restart killer_daemon
+		systemctl is-active --quiet batt_led.service && systemctl restart batt_led
+		;;
+esac

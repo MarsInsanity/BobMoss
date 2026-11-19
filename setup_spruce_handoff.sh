@@ -250,6 +250,10 @@ EOF
   # connections on these dongles.
   sudo mkdir -p Arkbuild/etc/NetworkManager/conf.d
   printf '[connection]\nwifi.powersave = 2\n' | sudo tee Arkbuild/etc/NetworkManager/conf.d/rg351p-wifi-powersave.conf >/dev/null
+  # Sleep hook: keep USB (the pad) up through suspend instead of
+  # sleep.rk3326's dwc2 unload/reload; see scripts/sleep.rg351p.
+  sudo cp scripts/sleep.rg351p Arkbuild/usr/lib/systemd/system-sleep/sleep
+  sudo chmod 755 Arkbuild/usr/lib/systemd/system-sleep/sleep
   # Power LED while asleep: batt_led drives gpio77 as an output (0 green,
   # 1 red), which holds through suspend, so the LED stayed green. Hand the pin
   # back to the PMIC for the suspend, as AmberELEC does on battery (its charge
