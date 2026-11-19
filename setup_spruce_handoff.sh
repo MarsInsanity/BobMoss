@@ -250,32 +250,6 @@ EOF
   # connections on these dongles.
   sudo mkdir -p Arkbuild/etc/NetworkManager/conf.d
   printf '[connection]\nwifi.powersave = 2\n' | sudo tee Arkbuild/etc/NetworkManager/conf.d/rg351p-wifi-powersave.conf >/dev/null
-  # Sleep hook: keep USB (the pad) up through suspend instead of
-  # sleep.rk3326's dwc2 unload/reload; see scripts/sleep.rg351p.
-  sudo cp scripts/sleep.rg351p Arkbuild/usr/lib/systemd/system-sleep/sleep
-  sudo chmod 755 Arkbuild/usr/lib/systemd/system-sleep/sleep
-  # Power LED while asleep: batt_led drives gpio77 as an output (0 green,
-  # 1 red), which holds through suspend, so the LED stayed green. Hand the pin
-  # back to the PMIC for the suspend, as AmberELEC does on battery (its charge
-  # indicator, dark unless charging) and give it back to batt_led on resume.
-  # systemd runs system-sleep hooks in parallel, so start batt_led here too
-  # rather than rely on sleep.rk3326's restart of an active unit.
-  sudo mkdir -p Arkbuild/usr/lib/systemd/system-sleep
-  cat <<'EOF' | sudo tee Arkbuild/usr/lib/systemd/system-sleep/rg351p-led >/dev/null
-#!/bin/sh
-# dArkMoss RG351P: power LED off (PMIC control) while suspended.
-case "$1" in
-  pre)
-    systemctl stop batt_led.service 2>/dev/null
-    [ -e /sys/class/gpio/gpio77/direction ] && echo in > /sys/class/gpio/gpio77/direction
-    ;;
-  post)
-    systemctl start batt_led.service 2>/dev/null
-    ;;
-esac
-exit 0
-EOF
-  sudo chmod 755 Arkbuild/usr/lib/systemd/system-sleep/rg351p-led
 fi
 # fstab: the 4.4 kernel has no compression levels, so "compress=zlib:1" made
 # systemd-remount-fs fail on every boot; plain "zlib" is the same algorithm.
