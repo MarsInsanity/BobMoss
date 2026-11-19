@@ -5,7 +5,9 @@
 # a release tagged with the branch name itself, so an installer can always
 # fetch the newest build of that device from one tag. The release it replaces
 # is kept, retagged <branch>-YYYYMMDD (the day it was built), by
-# .github/scripts/archive-release.sh.
+# .github/scripts/archive-release.sh. The tag has the same name as the branch:
+# in local clones say refs/heads/<branch> (or refs/tags/<branch>), and the
+# GitHub API reaches the release as releases/tags/<branch>.
 
 name: build-all
 
@@ -16,7 +18,7 @@ on:
         description: "Version stamped into the images, e.g. v1.1.3"
         required: true
       units:
-        description: "Comma-separated units (blank = every unit in .github/units.txt)"
+        description: "Comma-separated units (blank = every unit in .github/units.txt; on a device branch such as rg351p, just that unit)"
         required: false
         default: ""
       replace:
@@ -26,6 +28,18 @@ on:
 
 permissions:
   contents: write
+
+# Device branch (rg351p) only: its runs would race the archive and create steps
+# over the one release tag, so queue them. Every other branch gets a unique
+# group per run, i.e. no concurrency limit, exactly as upstream. env is not
+# available here, so the branch name is written literally.
+concurrency:
+  group: ${{ github.ref_name == 'rg351p' && 'build-all-rg351p' || format('build-all-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+env:
+  # Branches published to a release tagged with the branch name (see above).
+  DEVICE_BRANCHES: "rg351p"
 
 jobs:
   plan:
@@ -39,17 +53,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          REPLACE: ${{ inputs.replace }}
         run: |
           [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like v1.2.3"; exit 1; }
           if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "::error::$VERSION is already released"; exit 1
           fi
+          # A device branch's version is what Firmware Update compares and what
+          # names the .dmupd, so a new build must not reuse one: not the current
+          # <branch> release's, nor an archived <branch>-YYYYMMDD one's. Rebuilding
+          # units of the current version is what "replace" is for.
+          case " $DEVICE_BRANCHES " in *" $GITHUB_REF_NAME "*)
+            if [ "$REPLACE" != true ]; then
+              used="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                | jq -rs --arg b "$GITHUB_REF_NAME" --arg v "Version: ${VERSION}" 'add // [] | .[]
+                    | select(.tag_name == $b or (.tag_name | startswith($b + "-")))
+                    | select((.body // "") | gsub("\r"; "") | split("\n") | index([$v]) != null)
+                    | .tag_name')" \
+                || { echo "::error::could not list the releases to check ${VERSION}"; exit 1; }
+              if [ -n "$used" ]; then
+                echo "::error::${VERSION} was already built on ${GITHUB_REF_NAME} (${used//$'\n'/ }); pick a new version, or tick replace to rebuild units of the current one"
+                exit 1
+              fi
+            fi
+            ;;
+          esac
 
       - name: Pick the units
         id: units
         env:
           UNITS: ${{ inputs.units }}
         run: |
+          # A device branch builds its own unit unless told otherwise, not every unit.
+          if [ -z "$UNITS" ]; then
+            case " $DEVICE_BRANCHES " in *" $GITHUB_REF_NAME "*) UNITS="$GITHUB_REF_NAME" ;; esac
+          fi
           if [ -z "$UNITS" ]; then
             UNITS="$(grep -v '^\s*$' .github/units.txt | paste -sd,)"
           fi
@@ -118,13 +156,32 @@ jobs:
               cd spruce-src
               git fetch -q "https://github.com/${SPRUCE_UPSTREAM}" Development
               base="$(git merge-base FETCH_HEAD HEAD)"
-              git diff --name-only --diff-filter=ACMR "$base" HEAD > "../overlay-files-${unit}.txt"
+              # RG351P: card files only, not the branch's CI (.github), its root
+              # docs (CONTRIBUTING.md, README.md) or Saves/, which holds the
+              # user's live spruce settings. spruce/flags stays: a spruce without
+              # the unit has no first_boot_<UNIT>.lock, and firstboot needs it.
+              only=()
+              if [ "$unit" = rg351p ]; then
+                only=( -- . ':(exclude).github' ':(exclude,glob)*.md' ':(exclude)Saves' )
+              fi
+              git diff --name-only --diff-filter=ACMR "$base" HEAD "${only[@]}" > "../overlay-files-${unit}.txt"
               [ -s "../overlay-files-${unit}.txt" ] || { echo "::error::no ${UNIT_UC} files on ${OVERLAY_REPO} ${unit}"; exit 1; }
+              # RG351P: the overlay replaces shared spruce files with whole copies
+              # from this base, so the notes name the base and those files.
+              if [ "$unit" = rg351p ]; then
+                shared="$({ grep -v -i "$unit" "../overlay-files-${unit}.txt" || true; } | sed 's/.*/`&`/' | paste -sd, - | sed 's/,/, /g')"
+                {
+                  printf '\n**Overlay base:** built against spruceUI/spruceOS Development `%s` (%s). Use a spruce nightly built from that commit or shortly after it, one that does not change the shared files listed below. A nightly'\''s `commits_nightly.txt` (inside its .7z) names its Development commit on the `Last commit:` line.\n' \
+                    "$(git rev-parse --short "$base")" "$(git log -1 --format=%cs "$base")"
+                  [ -z "$shared" ] || printf '\nShared spruce files it replaces: %s\n' "$shared"
+                } > "../overlay-base-${unit}.txt"
+              fi
               tr '\n' '\0' < "../overlay-files-${unit}.txt" | xargs -0 git archive --format=zip -o "../spruce-${UNIT_UC}-overlay.zip" HEAD --
             )
             rm -rf spruce-src
             unzip -l "spruce-${UNIT_UC}-overlay.zip" | tail -1
             cat "src/.github/${unit}-overlay-note.md" >> "${unit}-notes.md"
+            if [ -f "overlay-base-${unit}.txt" ]; then cat "overlay-base-${unit}.txt" >> "${unit}-notes.md"; fi
           done
 
       - name: Checksums
@@ -138,12 +195,13 @@ jobs:
 
       - name: Publish the beta
         env:
-          # RELEASE_TOKEN (optional repository secret): a fine-grained token with
-          # Contents and Workflows write here, for archive-release.sh. The run
-          # token is refused (403) when moving a release to a new tag on a
-          # commit with workflow changes the default branch lacks.
+          # RELEASE_TOKEN (recommended repository secret for device branches): a
+          # fine-grained token with Contents and Workflows write here, for
+          # archive-release.sh. The run token may be refused (403) when a release
+          # is moved to a new tag on a commit with workflow changes the default
+          # branch lacks; the publish then fails after the build, and only this
+          # job needs a re-run once the secret is set.
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
-          DEVICE_BRANCHES: "rg351p"
           VERSION: ${{ inputs.version }}
           UNITS: ${{ needs.plan.outputs.units }}
           REPLACE: ${{ inputs.replace }}
@@ -199,3 +257,12 @@ jobs:
             --notes-file notes.md \
             --prerelease \
             --latest=false
+          # The device tag must name this build's commit: an old tag left behind
+          # would silently give the new release a stale commit.
+          if [ "$device" = true ]; then
+            got="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" -q .object.sha)" || got=""
+            if [ "$got" != "$GITHUB_SHA" ]; then
+              echo "::error::release ${TAG} points at ${got:-no tag}, not ${GITHUB_SHA}"
+              exit 1
+            fi
+          fi

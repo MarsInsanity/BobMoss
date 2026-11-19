@@ -368,6 +368,16 @@ elif [[ "$UNIT" == "rg351mp" ]] || [[ "$UNIT" == "g350" ]] || [[ "$UNIT" == "a10
   sudo cp device/rg351mp/*.service Arkbuild/etc/systemd/system/
   sudo chroot Arkbuild/ bash -c "systemctl enable 351mp batt_led"
 fi
+# RG351P: power LED on gpio77, same pin and polarity as AmberELEC's RG351P
+# battery.sh (out 0 green, out 1 red). Reuse the rg351mp batt_led service:
+# green, red at <=20%, blinking at <=10%. fix_power_led exports the pin before
+# each start (sleep.rk3326 restarts batt_led on wake). No 351mp.service and no
+# LED-colour menu scripts: spruce is the frontend.
+if [[ "$UNIT" == "rg351p" ]]; then
+  sudo cp device/rg351mp/batt_life_warning.py device/rg351mp/fix_power_led Arkbuild/usr/local/bin/
+  sudo sed '/^ExecStart=/i ExecStartPre=-/usr/local/bin/fix_power_led' device/rg351mp/batt_led.service | sudo tee Arkbuild/etc/systemd/system/batt_led.service >/dev/null
+  sudo chroot Arkbuild/ bash -c "systemctl enable batt_led"
+fi
 
 # Make all scripts in /usr/local/bin executable, world style
 sudo chmod 777 Arkbuild/usr/local/bin/*

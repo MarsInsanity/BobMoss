@@ -223,7 +223,33 @@ if [ "$UNIT" == "rg351p" ]; then
   cat <<'EOF' | sudo tee Arkbuild/etc/udev/rules.d/70-rg351p-joypad.rules >/dev/null
 # dArkMoss: the RG351P's internal pad is a joystick, not a keyboard.
 SUBSYSTEM=="input", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="3100", ENV{ID_INPUT_JOYSTICK}="1", ENV{ID_INPUT_KEYBOARD}=""
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="3100", RUN+="/usr/local/bin/rg351p-norepeat $devnode"
 EOF
+  # The same keyboard collection makes hid-input set EV_REP, so a held button
+  # also sends value-2 repeats (~33 ms) that scripts matching "key N" without a
+  # value treat as fresh presses. Turn autorepeat off on the pad itself
+  # (EVIOCSREP delay=0 period=0); the rule above re-runs it on every
+  # re-enumeration, resume included. SDL/RetroArch/PyUI never need value 2.
+  cat <<'EOF' | sudo tee Arkbuild/usr/local/bin/rg351p-norepeat >/dev/null
+#!/usr/bin/python3 -I
+# Disable kernel autorepeat (EVIOCSREP delay=0 period=0) on the RG351P pad; its HID keyboard collection makes hid-input set EV_REP.
+import fcntl, struct, sys
+with open(sys.argv[1], 'rb') as f:
+    fcntl.ioctl(f, 0x40084503, struct.pack('II', 0, 0))
+EOF
+  sudo chmod 755 Arkbuild/usr/local/bin/rg351p-norepeat
+  # Headphones: spktoggle.sh (@reboot cron) sets 'Playback Path' SPK_HP, then
+  # restores the seeded /var/local/asound.state, whose SPK put the first boot
+  # back to speaker only. Seed SPK_HP, the path spruce sets.
+  sudo sed -i "/name 'Playback Path'/{n;s/value SPK$/value SPK_HP/}" Arkbuild/var/local/asound.state
+  if ! grep -A1 "name 'Playback Path'" Arkbuild/var/local/asound.state | grep -q "value SPK_HP$"; then
+    echo "setup_spruce_handoff: could not seed 'Playback Path' SPK_HP in asound.state" >&2
+    exit 1
+  fi
+  # Wi-Fi (USB dongle only): power save off; it adds latency and drops
+  # connections on these dongles.
+  sudo mkdir -p Arkbuild/etc/NetworkManager/conf.d
+  printf '[connection]\nwifi.powersave = 2\n' | sudo tee Arkbuild/etc/NetworkManager/conf.d/rg351p-wifi-powersave.conf >/dev/null
 fi
 # fstab: the 4.4 kernel has no compression levels, so "compress=zlib:1" made
 # systemd-remount-fs fail on every boot; plain "zlib" is the same algorithm.
