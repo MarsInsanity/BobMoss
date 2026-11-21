@@ -39,6 +39,9 @@ fi
 # off the same single SD slot.
 if [ "$UNIT" == "v10" ] || [ "$UNIT" == "rg351p" ]; then
   ROOTFS_ARGS=" rootfstype=btrfs"
+  # The charge screen runs as PID 1 before systemd here (scripts/charge-mode/init-charge).
+  [ -x Arkbuild/usr/local/lib/darkmoss-charge/init-charge ] &&
+    ROOTFS_ARGS="${ROOTFS_ARGS} init=/usr/local/lib/darkmoss-charge/init-charge"
   INITRD_LOAD_LINE=""
   BOOTI_LINE='booti ${loadaddr} - ${dtb_loadaddr}'
 else
@@ -266,7 +269,10 @@ sudo chmod 0440 Arkbuild/etc/sudoers.d/ark_preserve_sdl_video_egl_driver
 # Add USB DAC Support
 echo -e "Generating 20-usb-alsa.rules udev for usb dac support"
 echo -e "KERNEL==\"controlC[0-9]*\", DRIVERS==\"usb\", SYMLINK=\"snd/controlC7\"" | sudo tee Arkbuild/etc/udev/rules.d/20-usb-alsa.rules
-sudo chroot Arkbuild/ bash -c "(crontab -l 2>/dev/null; echo \"@reboot /usr/local/bin/checknswitchforusbdac.sh &\") | crontab -"
+# dArkMoss: a unit, not a cron @reboot job. cron leaves the loop running when it stops, and the
+# loop keeps a deleted file under /tmp open, so /tmp cannot unmount at shutdown.
+sudo cp scripts/checknswitchforusbdac.service Arkbuild/etc/systemd/system/checknswitchforusbdac.service
+sudo chroot Arkbuild/ bash -c "systemctl enable checknswitchforusbdac.service"
 
 # Fix LEDs on A10 Mini to default to the nice dim blue light while powered on
 if [[ "$UNIT" == "a10mini" ]]; then

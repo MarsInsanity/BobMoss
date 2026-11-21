@@ -138,6 +138,14 @@ cat >> "$WORK/remove.list" <<'EOF'
 /etc/initramfs-tools/scripts/init-top/darkmoss-loading
 /boot/logo-boot.bmp
 EOF
+# Charge mode on a unit left out of it (scripts/charge-mode/install.sh): an earlier build may have put it there.
+if [ "${CHARGE_MODE:-}" != "y" ] && declare -F charge_mode_paths > /dev/null; then
+  charge_mode_paths >> "$WORK/remove.list"
+fi
+# A build with no root crontab ships none, so an older one (with the USB DAC watcher's @reboot) would stay.
+if ! sudo test -e Arkbuild/var/spool/cron/crontabs/root; then
+  echo /var/spool/cron/crontabs/root >> "$WORK/remove.list"
+fi
 
 sort -u "$WORK/unowned" "$WORK/changed" | grep -Ev -f "$WORK/exclude" | sed 's#^/##' > "$WORK/layer"
 
