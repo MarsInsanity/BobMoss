@@ -62,7 +62,7 @@ exitcode=1
 		sleep 2
 		sudo mkfs.vfat -F 32 -n SPRUCEOS /dev/${primary_block}p3 &> /dev/null || echo 1 > /tmp/code.txt
 	fi
-	# RG351P-only for now (other rk3326 units keep upstream behaviour); drop the .DEVICE test when upstreaming fleet-wide.
+	# RG351P only for now, so other rk3326 units keep their behaviour; the .DEVICE test can go to make it fleet-wide.
 	if [ "$make_data" = 2 ] && [ "$(cat /home/ark/.config/.DEVICE 2>/dev/null)" = "RG351P" ]; then
 		# A run cut short after the append but before mkfs left p3 raw; a re-run took this path and never formatted it.
 		# Format only a partition with no filesystem signature, so a real SPRUCEOS (or any user filesystem) is never wiped.

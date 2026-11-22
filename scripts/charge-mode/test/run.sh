@@ -27,7 +27,7 @@ HOOK="sudo install -D -m 0755 scripts/charge-mode/darkmoss-charge "
 INITC="sudo install -D -m 0755 scripts/charge-mode/init-charge "
 # CI units left out on purpose (they must install nothing): the G350 and A10 Mini (no plug-in start),
 # the RG353M (no unit to test on), the E5 Plus (its own charging screen, scripts/e5plus),
-# the RG351P (fork unit, not opted in).
+# the RG351P (not opted in).
 NOT_IN=" g350 a10mini 353m e5plus rg351p "
 for u in $(cat "$REPO/.github/units.txt"); do
   unit=$(sed -n 's/^export UNIT=//p' "$REPO/build_$u.sh"); out=$(install_log "$unit"); fr="$REPO/scripts/charge-mode/frames/$unit"
